@@ -1,9 +1,12 @@
 import 'dotenv/config'
+import { installExternalApiFetchLogging } from '@/lib/logging/external-api'
 import { logInfo as _ulogInfo, logError as _ulogError } from '@/lib/logging/core'
 import { createImageWorker } from './image.worker'
 import { createVideoWorker } from './video.worker'
 import { createVoiceWorker } from './voice.worker'
 import { createTextWorker } from './text.worker'
+
+installExternalApiFetchLogging()
 
 const workers = [createImageWorker(), createVideoWorker(), createVoiceWorker(), createTextWorker()]
 

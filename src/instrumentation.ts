@@ -9,8 +9,11 @@ export async function register() {
 
   // 只在 Node.js 服务端运行
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { installExternalApiFetchLogging } = await import('@/lib/logging/external-api')
     const { prisma } = await import('@/lib/prisma')
     const { logInfo: _ulogInfo, logError: _ulogError } = await import('@/lib/logging/core')
+
+    installExternalApiFetchLogging()
 
     // Phase 1: 将 processing 任务打回 queued
     try {
