@@ -97,4 +97,29 @@ describe('provider test connection compatible probes', () => {
     expect(result.steps[1]?.status).toBe('skip')
     expect(result.steps.length).toBe(2)
   })
+
+  it('treats hakimi-compatible providers as compatible probes', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/v1/models')) {
+        return new Response(JSON.stringify({ data: [{ id: 'hk-1' }] }), { status: 200 })
+      }
+      return new Response('not-found', { status: 404 })
+    })
+
+    const result = await testProviderConnection({
+      apiType: 'hakimi-compatible',
+      baseUrl: 'https://hakimi.example.com',
+      apiKey: 'compat-key',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.steps[0]).toMatchObject({
+      name: 'models',
+      status: 'pass',
+      message: 'Found 1 models',
+    })
+    expect(result.steps[1]?.name).toBe('credits')
+    expect(result.steps[1]?.status).toBe('skip')
+  })
 })

@@ -54,6 +54,32 @@ describe('api specific - user api-config probe model llm protocol', () => {
     })
   })
 
+  it('probes protocol for hakimi-compatible provider/model', async () => {
+    installAuthMocks()
+    mockAuthenticated('user-1')
+    const route = await import('@/app/api/user/api-config/probe-model-llm-protocol/route')
+
+    const req = buildMockRequest({
+      path: '/api/user/api-config/probe-model-llm-protocol',
+      method: 'POST',
+      body: {
+        providerId: 'hakimi-compatible:node-1',
+        modelId: 'hakimi-4.1-mini',
+      },
+    })
+
+    const res = await route.POST(req, routeContext)
+    expect(res.status).toBe(200)
+    const body = await res.json() as { success: boolean; protocol?: string }
+    expect(body.success).toBe(true)
+    expect(body.protocol).toBe('responses')
+    expect(probeModelLlmProtocolMock).toHaveBeenCalledWith({
+      userId: 'user-1',
+      providerId: 'hakimi-compatible:node-1',
+      modelId: 'hakimi-4.1-mini',
+    })
+  })
+
   it('rejects non-openai-compatible provider ids', async () => {
     installAuthMocks()
     mockAuthenticated('user-1')

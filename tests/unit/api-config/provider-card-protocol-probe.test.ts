@@ -11,8 +11,9 @@ describe('api-config provider-card protocol probe helpers', () => {
     vi.clearAllMocks()
   })
 
-  it('only probes openai-compatible llm models', () => {
+  it('only probes openai-compat gateway llm models', () => {
     expect(shouldProbeModelLlmProtocol({ providerId: 'openai-compatible:oa-1', modelType: 'llm' })).toBe(true)
+    expect(shouldProbeModelLlmProtocol({ providerId: 'hakimi-compatible:hk-1', modelType: 'llm' })).toBe(true)
     expect(shouldProbeModelLlmProtocol({ providerId: 'openai-compatible:oa-1', modelType: 'image' })).toBe(false)
     expect(shouldProbeModelLlmProtocol({ providerId: 'gemini-compatible:gm-1', modelType: 'llm' })).toBe(false)
   })
@@ -47,6 +48,17 @@ describe('api-config provider-card protocol probe helpers', () => {
       originalModel,
       nextModelId: 'gpt-4.1',
     })).toBe(false)
+
+    const hakimiOriginalModel: CustomModel = {
+      ...originalModel,
+      modelKey: 'hakimi-compatible:hk-1::gpt-4.1-mini',
+      provider: 'hakimi-compatible:hk-1',
+    }
+    expect(shouldReprobeModelLlmProtocol({
+      providerId: 'hakimi-compatible:hk-1',
+      originalModel: hakimiOriginalModel,
+      nextModelId: 'gpt-4.1',
+    })).toBe(true)
   })
 
   it('parses successful probe response payload', async () => {

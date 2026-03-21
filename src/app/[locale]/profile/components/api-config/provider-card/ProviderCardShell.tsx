@@ -7,6 +7,7 @@ import { VERIFIABLE_PROVIDER_KEYS } from './types'
 import type { UseProviderCardStateResult } from './hooks/useProviderCardState'
 import { AppIcon } from '@/components/ui/icons'
 import { getProviderKey } from '../types'
+import { isOpenAICompatGatewayProvider } from '@/lib/provider-compat'
 
 interface ProviderCardShellProps {
   provider: ProviderCardProps['provider']
@@ -25,7 +26,8 @@ export function getCompatibilityLayerBadgeLabel(
   t: ProviderCardTranslator,
 ): string | null {
   const providerKey = getProviderKey(providerId)
-  if (providerKey === 'openai-compatible') return t('compatibilityLayerOpenAI')
+  if (providerKey === 'hakimi-compatible') return t('compatibilityLayerHakimi')
+  if (isOpenAICompatGatewayProvider(providerKey)) return t('compatibilityLayerOpenAI')
   if (providerKey === 'gemini-compatible') return t('compatibilityLayerGemini')
   return null
 }

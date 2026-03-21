@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
 import { getProviderKey } from '@/lib/api-config'
+import { isOpenAICompatGatewayProvider } from '@/lib/provider-compat'
 import { probeModelLlmProtocol } from '@/lib/user-api/model-llm-protocol-probe'
 
 type ProbeRequestBody = {
@@ -36,7 +37,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
   const providerId = readRequiredString(body.providerId, 'providerId')
   const modelId = readRequiredString(body.modelId, 'modelId')
 
-  if (getProviderKey(providerId) !== 'openai-compatible') {
+  if (!isOpenAICompatGatewayProvider(getProviderKey(providerId))) {
     throw new ApiError('INVALID_PARAMS', {
       code: 'MODEL_LLM_PROTOCOL_PROBE_PROVIDER_INVALID',
       field: 'providerId',

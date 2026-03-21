@@ -11,6 +11,7 @@ import { logInfo as _ulogInfo } from '@/lib/logging/core'
 import { createAudioGenerator, createImageGenerator, createVideoGenerator } from './generators/factory'
 import type { GenerateResult } from './generators/base'
 import { getProviderConfig, getProviderKey, resolveModelSelection } from './api-config'
+import { isGeminiCompatibleProvider } from './provider-compat'
 import {
     generateImageViaOpenAICompat,
     generateImageViaOpenAICompatTemplate,
@@ -38,6 +39,20 @@ function aspectRatioToOpenAISize(aspectRatio: string | undefined): string | unde
         '2:3': '1024x1536',
     }
     return mapping[ratio] || undefined
+}
+
+function normalizeHakimiAspectRatio(aspectRatio: string | undefined): string | undefined {
+    if (!aspectRatio) return undefined
+    const match = aspectRatio.trim().match(/^(\d+)\s*:\s*(\d+)$/)
+    if (!match) return undefined
+    return `${match[1]}x${match[2]}`
+}
+
+function appendHakimiAspectRatioSuffix(modelId: string, aspectRatio: string | undefined): string {
+    const normalizedRatio = normalizeHakimiAspectRatio(aspectRatio)
+    if (!normalizedRatio) return modelId
+    const suffix = `-${normalizedRatio}`
+    return modelId.endsWith(suffix) ? modelId : `${modelId}${suffix}`
 }
 
 /**
@@ -95,7 +110,7 @@ export async function generateImage(
     let gatewayRoute = OFFICIAL_ONLY_PROVIDER_KEYS.has(providerKey)
         ? 'official'
         : (providerConfig.gatewayRoute || defaultGatewayRoute)
-    if (providerKey === 'gemini-compatible') {
+    if (isGeminiCompatibleProvider(providerKey)) {
         // DEPRECATED: historical rows persisted gemini-compatible as openai-compat by default.
         // Runtime now resolves route by apiMode to avoid requiring data migration SQL.
         gatewayRoute = providerConfig.apiMode === 'openai-official' ? 'openai-compat' : 'official'
@@ -104,6 +119,16 @@ export async function generateImage(
     // 调用生成（提取 referenceImages 单独传递，其余选项合并进 options）
     const { referenceImages, ...generatorOptions } = options || {}
     if (gatewayRoute === 'openai-compat') {
+        const compatModelId = providerKey === 'hakimi-compatible'
+            ? appendHakimiAspectRatioSuffix(selection.modelId, generatorOptions.aspectRatio)
+            : selection.modelId
+        const compatImageOptions = providerKey === 'hakimi-compatible'
+            ? (() => {
+                const nextOptions = { ...generatorOptions }
+                delete nextOptions.aspectRatio
+                return nextOptions
+            })()
+            : generatorOptions
         const compatTemplate = selection.compatMediaTemplate
         if (providerKey === 'openai-compatible' && !compatTemplate) {
             throw new Error(`MODEL_COMPAT_MEDIA_TEMPLATE_REQUIRED: ${selection.modelKey}`)
@@ -112,14 +137,14 @@ export async function generateImage(
             return await generateImageViaOpenAICompatTemplate({
                 userId,
                 providerId: selection.provider,
-                modelId: selection.modelId,
+                modelId: compatModelId,
                 modelKey: selection.modelKey,
                 prompt,
                 referenceImages,
                 options: {
-                    ...generatorOptions,
+                    ...compatImageOptions,
                     provider: selection.provider,
-                    modelId: selection.modelId,
+                    modelId: compatModelId,
                     modelKey: selection.modelKey,
                 },
                 profile: 'openai-compatible',
@@ -128,7 +153,7 @@ export async function generateImage(
         }
 
         // OpenAI 兼容模式：将 aspectRatio 转换为 size
-        let openaiCompatOptions = { ...generatorOptions }
+        let openaiCompatOptions = { ...compatImageOptions }
         if (openaiCompatOptions.aspectRatio) {
             const mappedSize = aspectRatioToOpenAISize(openaiCompatOptions.aspectRatio)
             if (mappedSize && !openaiCompatOptions.size) {
@@ -141,13 +166,13 @@ export async function generateImage(
         return await generateImageViaOpenAICompat({
             userId,
             providerId: selection.provider,
-            modelId: selection.modelId,
+            modelId: compatModelId,
             prompt,
             referenceImages,
             options: {
                 ...openaiCompatOptions,
                 provider: selection.provider,
-                modelId: selection.modelId,
+                modelId: compatModelId,
                 modelKey: selection.modelKey,
             },
             profile: 'openai-compatible',

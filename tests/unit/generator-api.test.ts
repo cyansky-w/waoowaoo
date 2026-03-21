@@ -162,6 +162,48 @@ describe('generator-api gateway routing', () => {
     expect(result).toEqual({ success: true, imageUrl: 'official-image' })
   })
 
+  it('rewrites hakimi-compatible image model id with aspect ratio suffix', async () => {
+    resolveModelSelectionMock.mockResolvedValueOnce({
+      provider: 'hakimi-compatible:hk-1',
+      modelId: 'gemini-3.1-flash-image',
+      modelKey: 'hakimi-compatible:hk-1::gemini-3.1-flash-image',
+      mediaType: 'image',
+      compatMediaTemplate: {
+        version: 1,
+        mediaType: 'image',
+        mode: 'sync',
+        create: { method: 'POST', path: '/v1/images/generations' },
+        response: { outputUrlPath: 'data[0].url' },
+      },
+    })
+    getProviderConfigMock.mockResolvedValueOnce({
+      id: 'hakimi-compatible:hk-1',
+      name: 'Hakimi Compatible',
+      apiKey: 'hk-key',
+      baseUrl: 'https://hakimi.test/v1',
+      apiMode: 'openai-official',
+      gatewayRoute: 'openai-compat',
+    })
+    resolveModelGatewayRouteMock.mockReturnValueOnce('openai-compat')
+
+    const result = await generateImage(
+      'user-1',
+      'hakimi-compatible:hk-1::gemini-3.1-flash-image',
+      'draw cat',
+      { aspectRatio: '16:9' },
+    )
+
+    expect(generateImageViaOpenAICompatTemplateMock).toHaveBeenCalledWith(expect.objectContaining({
+      providerId: 'hakimi-compatible:hk-1',
+      modelId: 'gemini-3.1-flash-image-16x9',
+      options: expect.not.objectContaining({
+        aspectRatio: '16:9',
+        size: expect.anything(),
+      }),
+    }))
+    expect(result).toEqual({ success: true, imageUrl: 'compat-template-image' })
+  })
+
   it('routes openai-compatible video requests to openai-compat gateway', async () => {
     resolveModelSelectionMock.mockResolvedValueOnce({
       provider: 'openai-compatible:oa-1',

@@ -20,6 +20,10 @@ import { VERIFIABLE_PROVIDER_KEYS } from '../types'
 import type { CustomModel } from '../../types'
 import { apiFetch } from '@/lib/api-fetch'
 import {
+  isBaseUrlCompatibleProvider,
+  isOpenAICompatGatewayProvider,
+} from '@/lib/provider-compat'
+import {
   useAssistantChat,
   type AssistantDraftModel,
   type AssistantSavedEvent,
@@ -107,7 +111,7 @@ export function shouldProbeModelLlmProtocol(params: {
   providerId: string
   modelType: ProviderCardModelType
 }): boolean {
-  return getProviderKey(params.providerId) === 'openai-compatible' && params.modelType === 'llm'
+  return isOpenAICompatGatewayProvider(getProviderKey(params.providerId)) && params.modelType === 'llm'
 }
 
 export function shouldReprobeModelLlmProtocol(params: {
@@ -117,7 +121,7 @@ export function shouldReprobeModelLlmProtocol(params: {
 }): boolean {
   if (!shouldProbeModelLlmProtocol({ providerId: params.providerId, modelType: 'llm' })) return false
   if (params.originalModel.type !== 'llm') return false
-  if (getProviderKey(params.originalModel.provider) !== 'openai-compatible') return false
+  if (!isOpenAICompatGatewayProvider(getProviderKey(params.originalModel.provider))) return false
   return params.originalModel.modelId !== params.nextModelId || params.originalModel.provider !== params.providerId
 }
 
@@ -175,8 +179,7 @@ export function buildProviderConnectionPayload(params: {
   const apiKey = params.apiKey.trim()
   const compatibleBaseUrl = params.baseUrl?.trim()
   const llmModel = params.llmModel?.trim()
-  const isCompatibleProvider =
-    params.providerKey === 'openai-compatible' || params.providerKey === 'gemini-compatible'
+  const isCompatibleProvider = isBaseUrlCompatibleProvider(params.providerKey)
 
   if (isCompatibleProvider && compatibleBaseUrl) {
     return {
@@ -381,12 +384,12 @@ export function useProviderCardState({
   const [assistantSavedEvent, setAssistantSavedEvent] = useState<AssistantSavedEvent | null>(null)
 
   const providerKey = getProviderKey(provider.id)
-  const assistantEnabled = providerKey === 'openai-compatible'
+  const assistantEnabled = isOpenAICompatGatewayProvider(providerKey)
   const isPresetProvider = PRESET_PROVIDERS.some(
     (presetProvider) => presetProvider.id === provider.id,
   )
   const showBaseUrlEdit =
-    ['gemini-compatible', 'openai-compatible'].includes(providerKey) &&
+    isBaseUrlCompatibleProvider(providerKey) &&
     Boolean(onUpdateBaseUrl)
   const tutorial = getProviderTutorial(provider.id)
 

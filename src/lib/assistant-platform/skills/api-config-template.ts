@@ -1,6 +1,7 @@
 import { jsonSchema, tool, type ToolSet } from 'ai'
 import type { JSONSchema7 } from 'json-schema'
 import { getProviderKey } from '@/lib/api-config'
+import { isOpenAICompatGatewayProvider } from '@/lib/provider-compat'
 import type { OpenAICompatMediaTemplate } from '@/lib/openai-compat-media-template'
 import { saveModelTemplateConfiguration } from '@/lib/user-api/model-template/save'
 import { validateOpenAICompatMediaTemplate } from '@/lib/user-api/model-template/validator'
@@ -58,7 +59,7 @@ function createApiConfigTemplateTools(ctx: AssistantRuntimeContext): ToolSet {
   if (!providerId) {
     throw new AssistantPlatformError('ASSISTANT_CONTEXT_REQUIRED', 'providerId is required for api-config-template assistant')
   }
-  if (getProviderKey(providerId) !== 'openai-compatible') {
+  if (!isOpenAICompatGatewayProvider(getProviderKey(providerId))) {
     throw new AssistantPlatformError('ASSISTANT_CONTEXT_REQUIRED', 'api-config-template assistant requires openai-compatible providerId')
   }
 

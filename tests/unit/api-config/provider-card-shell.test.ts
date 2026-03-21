@@ -5,6 +5,7 @@ describe('provider card shell compatibility layer badge', () => {
   const t = (key: string): string => {
     if (key === 'compatibilityLayerOpenAI') return 'OpenAI 兼容层'
     if (key === 'compatibilityLayerGemini') return 'Gemini 兼容层'
+    if (key === 'compatibilityLayerHakimi') return '哈基米兼容层'
     return key
   }
 
@@ -14,6 +15,10 @@ describe('provider card shell compatibility layer badge', () => {
 
   it('shows Gemini compatible layer label for gemini-compatible providers', () => {
     expect(getCompatibilityLayerBadgeLabel('gemini-compatible:gm-1', t)).toBe('Gemini 兼容层')
+  })
+
+  it('shows Hakimi compatible layer label for hakimi-compatible providers', () => {
+    expect(getCompatibilityLayerBadgeLabel('hakimi-compatible:hk-1', t)).toBe('哈基米兼容层')
   })
 
   it('does not show compatibility label for preset providers', () => {

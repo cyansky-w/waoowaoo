@@ -776,6 +776,35 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     expect(savedProviders[0]?.gatewayRoute).toBe('openai-compat')
   })
 
+  it('forces hakimi-compatible provider to openai-compat route', async () => {
+    installAuthMocks()
+    mockAuthenticated('user-1')
+    const route = await import('@/app/api/user/api-config/route')
+
+    const req = buildMockRequest({
+      path: '/api/user/api-config',
+      method: 'PUT',
+      body: {
+        providers: [
+          {
+            id: 'hakimi-compatible:hk-1',
+            name: 'Hakimi Node',
+            baseUrl: 'https://hakimi.test',
+            apiKey: 'hk-key',
+            apiMode: 'openai-official',
+          },
+        ],
+      },
+    })
+
+    const res = await route.PUT(req, routeContext)
+    expect(res.status).toBe(200)
+
+    const savedProviders = readSavedProvidersFromUpsert()
+    expect(savedProviders).toHaveLength(1)
+    expect(savedProviders[0]?.gatewayRoute).toBe('openai-compat')
+  })
+
   it('bailian provider always persists gatewayRoute as official', async () => {
     installAuthMocks()
     mockAuthenticated('user-1')
@@ -1157,6 +1186,46 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     expect(res.status).toBe(200)
     const savedModels = readSavedModelsFromUpsert()
     const savedModel = savedModels.find((item) => item.modelKey === 'openai-compatible:oa-1::gpt-image-1')
+    expect(savedModel?.compatMediaTemplate).toMatchObject({
+      version: 1,
+      mediaType: 'image',
+      mode: 'sync',
+      create: {
+        path: '/images/generations',
+      },
+    })
+    expect(savedModel?.compatMediaTemplateSource).toBe('manual')
+    expect(typeof savedModel?.compatMediaTemplateCheckedAt).toBe('string')
+  })
+
+  it('backfills default compatMediaTemplate for hakimi-compatible image model when missing', async () => {
+    installAuthMocks()
+    mockAuthenticated('user-1')
+    const route = await import('@/app/api/user/api-config/route')
+
+    const req = buildMockRequest({
+      path: '/api/user/api-config',
+      method: 'PUT',
+      body: {
+        providers: [
+          { id: 'hakimi-compatible:hk-1', name: 'Hakimi Compat', baseUrl: 'https://hakimi.test', apiKey: 'hk-key' },
+        ],
+        models: [
+          {
+            modelId: 'gemini-3.1-flash-image',
+            modelKey: 'hakimi-compatible:hk-1::gemini-3.1-flash-image',
+            name: 'Hakimi Image',
+            type: 'image',
+            provider: 'hakimi-compatible:hk-1',
+          },
+        ],
+      },
+    })
+
+    const res = await route.PUT(req, routeContext)
+    expect(res.status).toBe(200)
+    const savedModels = readSavedModelsFromUpsert()
+    const savedModel = savedModels.find((item) => item.modelKey === 'hakimi-compatible:hk-1::gemini-3.1-flash-image')
     expect(savedModel?.compatMediaTemplate).toMatchObject({
       version: 1,
       mediaType: 'image',

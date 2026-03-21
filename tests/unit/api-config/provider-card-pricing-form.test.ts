@@ -14,6 +14,10 @@ describe('provider card pricing form behavior', () => {
     expect(getAddableModelTypesForProvider('openai-compatible:oa-1')).toEqual(['llm', 'image', 'video'])
   })
 
+  it('allows hakimi-compatible provider to add llm/image/video', () => {
+    expect(getAddableModelTypesForProvider('hakimi-compatible:hk-1')).toEqual(['llm', 'image', 'video'])
+  })
+
   it('shows llm/image/video tabs by default for openai-compatible even with only image models', () => {
     const visible = getVisibleModelTypesForProvider(
       'openai-compatible:oa-1',
@@ -37,6 +41,7 @@ describe('provider card pricing form behavior', () => {
 
   it('shows the openai-compatible video hint only for openai-compatible video add forms', () => {
     expect(shouldShowOpenAICompatVideoHint('openai-compatible:oa-1', 'video')).toBe(true)
+    expect(shouldShowOpenAICompatVideoHint('hakimi-compatible:hk-1', 'video')).toBe(true)
     expect(shouldShowOpenAICompatVideoHint('openai-compatible:oa-1', 'image')).toBe(false)
     expect(shouldShowOpenAICompatVideoHint('gemini-compatible:gm-1', 'video')).toBe(false)
     expect(shouldShowOpenAICompatVideoHint('ark', 'video')).toBe(false)
@@ -139,6 +144,20 @@ describe('provider card pricing form behavior', () => {
       apiType: 'openai-compatible',
       apiKey: 'sk-test',
       baseUrl: 'https://api.openai-proxy.example/v1',
+    })
+  })
+
+  it('includes baseUrl for hakimi-compatible provider connection test payload', () => {
+    const payload = buildProviderConnectionPayload({
+      providerKey: 'hakimi-compatible',
+      apiKey: ' hk-test ',
+      baseUrl: ' https://hakimi.example/v1 ',
+    })
+
+    expect(payload).toEqual({
+      apiType: 'hakimi-compatible',
+      apiKey: 'hk-test',
+      baseUrl: 'https://hakimi.example/v1',
     })
   })
 

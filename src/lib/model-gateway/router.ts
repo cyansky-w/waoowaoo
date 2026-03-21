@@ -1,17 +1,14 @@
 import { getProviderKey } from '@/lib/api-config'
 import type { ModelGatewayRoute } from './types'
+import { isOpenAICompatGatewayProvider } from '@/lib/provider-compat'
 
-const COMPATIBLE_PROVIDER_KEYS = new Set([
-  'openai-compatible',
-])
 const OFFICIAL_ONLY_PROVIDER_KEYS = new Set([
   'bailian',
   'siliconflow',
 ])
 
 export function isCompatibleProvider(providerId: string): boolean {
-  const providerKey = getProviderKey(providerId).toLowerCase()
-  return COMPATIBLE_PROVIDER_KEYS.has(providerKey)
+  return isOpenAICompatGatewayProvider(getProviderKey(providerId))
 }
 
 export function resolveModelGatewayRoute(providerId: string): ModelGatewayRoute {

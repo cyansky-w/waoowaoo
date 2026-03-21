@@ -17,6 +17,7 @@ import { ApiConfigProviderList } from './ApiConfigProviderList'
 import { DefaultModelCards } from './DefaultModelCards'
 import { useApiConfigFilters } from './hooks/useApiConfigFilters'
 import { AppIcon } from '@/components/ui/icons'
+import { isOpenAICompatGatewayProvider } from '@/lib/provider-compat'
 
 type TestStepStatus = 'pass' | 'fail' | 'skip'
 interface TestStep {
@@ -28,7 +29,7 @@ interface TestStep {
 }
 type TestStatus = 'idle' | 'testing' | 'passed' | 'failed'
 
-type CustomProviderType = 'gemini-compatible' | 'openai-compatible'
+type CustomProviderType = 'gemini-compatible' | 'openai-compatible' | 'hakimi-compatible'
 
 const Icons = {
   settings: () => (
@@ -168,7 +169,7 @@ export function ApiConfigTabContainer() {
       name,
       baseUrl,
       apiKey,
-      apiMode: newGeminiProvider.apiType === 'openai-compatible' ? 'openai-official' : 'gemini-sdk',
+      apiMode: isOpenAICompatGatewayProvider(newGeminiProvider.apiType) ? 'openai-official' : 'gemini-sdk',
     })
 
     setNewGeminiProvider({ name: '', baseUrl: '', apiKey: '', apiType: 'gemini-compatible' })
@@ -372,6 +373,7 @@ export function ApiConfigTabContainer() {
               >
                 <option value="gemini-compatible">{t('apiTypeGeminiCompatible')}</option>
                 <option value="openai-compatible">{t('apiTypeOpenAICompatible')}</option>
+                <option value="hakimi-compatible">{t('apiTypeHakimiCompatible')}</option>
               </select>
               <div className="pointer-events-none absolute right-3 top-3 text-[var(--glass-text-tertiary)]">
                 <Icons.chevronDown />

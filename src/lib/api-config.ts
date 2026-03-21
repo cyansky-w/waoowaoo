@@ -14,6 +14,10 @@ import {
   parseModelKeyStrict,
   type UnifiedModelType,
 } from './model-config-contract'
+import {
+  isGeminiCompatibleProvider,
+  isOpenAICompatGatewayProvider,
+} from './provider-compat'
 import type {
   OpenAICompatMediaTemplate,
   OpenAICompatMediaTemplateSource,
@@ -67,7 +71,7 @@ function normalizeProviderBaseUrl(providerId: string, rawBaseUrl?: string): stri
 
   const baseUrl = readTrimmedString(rawBaseUrl)
   if (!baseUrl) return undefined
-  if (providerKey !== 'openai-compatible') return baseUrl
+  if (!isOpenAICompatGatewayProvider(providerKey)) return baseUrl
 
   try {
     const parsed = new URL(baseUrl)
@@ -155,7 +159,7 @@ function parseCustomProviders(rawProviders: string | null | undefined): CustomPr
     if (apiModeRaw === undefined) {
       apiMode = undefined
     } else if (apiModeRaw === 'gemini-sdk' || apiModeRaw === 'openai-official') {
-      if (providerKey === 'gemini-compatible' && apiModeRaw === 'openai-official') {
+      if (isGeminiCompatibleProvider(providerKey) && apiModeRaw === 'openai-official') {
         throw new Error(`PROVIDER_API_MODE_INVALID: providers[${index}].apiMode`)
       }
       apiMode = apiModeRaw
@@ -169,9 +173,9 @@ function parseCustomProviders(rawProviders: string | null | undefined): CustomPr
       gatewayRoute = undefined
     } else if (!isGatewayRoute(gatewayRouteRaw)) {
       throw new Error(`PROVIDER_GATEWAY_ROUTE_INVALID: providers[${index}].gatewayRoute`)
-    } else if (providerKey === 'openai-compatible' && gatewayRouteRaw === 'official') {
+    } else if (isOpenAICompatGatewayProvider(providerKey) && gatewayRouteRaw === 'official') {
       throw new Error(`PROVIDER_GATEWAY_ROUTE_INVALID: providers[${index}].gatewayRoute`)
-    } else if (providerKey !== 'openai-compatible' && gatewayRouteRaw === 'openai-compat') {
+    } else if (!isOpenAICompatGatewayProvider(providerKey) && gatewayRouteRaw === 'openai-compat') {
       throw new Error(`PROVIDER_GATEWAY_ROUTE_INVALID: providers[${index}].gatewayRoute`)
     } else {
       gatewayRoute = gatewayRouteRaw
@@ -334,10 +338,10 @@ export async function resolveModelSelection(
   }
 
   const providerKey = getProviderKey(exact.provider).toLowerCase()
-  const llmProtocol = mediaType === 'llm' && providerKey === 'openai-compatible'
+  const llmProtocol = mediaType === 'llm' && isOpenAICompatGatewayProvider(providerKey)
     ? (exact.llmProtocol || 'chat-completions')
     : undefined
-  const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && providerKey === 'openai-compatible'
+  const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && isOpenAICompatGatewayProvider(providerKey)
     ? exact.compatMediaTemplate
     : undefined
 
@@ -365,10 +369,10 @@ async function resolveSingleModelSelection(
 
   const model = models[0]
   const providerKey = getProviderKey(model.provider).toLowerCase()
-  const llmProtocol = mediaType === 'llm' && providerKey === 'openai-compatible'
+  const llmProtocol = mediaType === 'llm' && isOpenAICompatGatewayProvider(providerKey)
     ? (model.llmProtocol || 'chat-completions')
     : undefined
-  const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && providerKey === 'openai-compatible'
+  const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && isOpenAICompatGatewayProvider(providerKey)
     ? model.compatMediaTemplate
     : undefined
 

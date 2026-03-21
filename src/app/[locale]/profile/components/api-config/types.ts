@@ -373,6 +373,14 @@ export const PROVIDER_TUTORIALS: ProviderTutorial[] = [
         ]
     },
     {
+        providerId: 'hakimi-compatible',
+        steps: [
+            {
+                text: 'hakimi_compatible_step1'
+            }
+        ]
+    },
+    {
         providerId: 'bailian',
         steps: [
             {

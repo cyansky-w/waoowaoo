@@ -4,13 +4,12 @@ import { useEffect } from 'react'
 import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { useSession } from 'next-auth/react'
-import { useRouter } from '@/i18n/navigation'
 import Navbar from '@/components/Navbar'
-import { Link } from '@/i18n/navigation'
+import { Link, useRouter } from '@/i18n/navigation'
 
 export default function Home() {
   const t = useTranslations('landing')
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const router = useRouter()
 
   // 已登录用户自动跳转到 workspace
@@ -68,6 +67,12 @@ export default function Home() {
                   className="glass-btn-base glass-btn-primary px-8 py-4 rounded-xl font-semibold transition-all duration-300"
                 >
                   {t('getStarted')}
+                </Link>
+                <Link
+                  href={{ pathname: '/guide' }}
+                  className="glass-btn-base glass-btn-secondary px-8 py-4 rounded-xl font-semibold transition-all duration-300"
+                >
+                  {t('usageGuide')}
                 </Link>
               </div>
             </div>

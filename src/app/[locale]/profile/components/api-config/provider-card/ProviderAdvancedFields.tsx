@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { AppIcon } from '@/components/ui/icons'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { getProviderKey, isPresetComingSoonModel, type CustomModel } from '../types'
+import { isOpenAICompatGatewayProvider } from '@/lib/provider-compat'
 import type { UseProviderCardStateResult } from './hooks/useProviderCardState'
 import type {
   ProviderCardModelType,
@@ -64,7 +65,7 @@ const MODEL_TYPES: readonly ProviderCardModelType[] = ['llm', 'image', 'video', 
 
 export function getAddableModelTypesForProvider(providerId: string): ProviderCardModelType[] {
   const providerKey = getProviderKey(providerId)
-  if (providerKey === 'openai-compatible') return ['llm', 'image', 'video']
+  if (isOpenAICompatGatewayProvider(providerKey)) return ['llm', 'image', 'video']
   return ['llm', 'image', 'video', 'audio']
 }
 
@@ -72,12 +73,12 @@ export function shouldShowOpenAICompatVideoHint(
   providerId: string,
   type: ProviderCardModelType | null,
 ): boolean {
-  return getProviderKey(providerId) === 'openai-compatible' && type === 'video'
+  return isOpenAICompatGatewayProvider(getProviderKey(providerId)) && type === 'video'
 }
 
 function shouldShowDefaultTabs(providerId: string): boolean {
   const providerKey = getProviderKey(providerId)
-  return providerKey === 'openai-compatible' || providerKey === 'gemini-compatible'
+  return isOpenAICompatGatewayProvider(providerKey) || providerKey === 'gemini-compatible'
 }
 
 export function getVisibleModelTypesForProvider(

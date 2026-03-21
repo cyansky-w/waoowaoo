@@ -65,6 +65,20 @@ describe('llm test connection', () => {
     })
   })
 
+  it('tests hakimi-compatible provider via openai-style endpoint', async () => {
+    const result = await testLlmConnection({
+      provider: 'hakimi-compatible',
+      apiKey: 'hk-key',
+      baseUrl: 'https://hakimi.example.com/v1',
+      model: 'hakimi-4.1-mini',
+    })
+
+    expect(result.provider).toBe('hakimi-compatible')
+    expect(result.message).toBe('hakimi-compatible 连接成功')
+    expect(result.model).toBe('gpt-4.1-mini')
+    expect(result.answer).toBe('2')
+  })
+
   it('requires baseUrl for gemini-compatible provider', async () => {
     await expect(testLlmConnection({
       provider: 'gemini-compatible',

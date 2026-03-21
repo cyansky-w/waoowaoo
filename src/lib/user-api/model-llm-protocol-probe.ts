@@ -1,5 +1,6 @@
 import { getProviderKey } from '@/lib/api-config'
 import { resolveOpenAICompatClientConfig } from '@/lib/model-gateway/openai-compat/common'
+import { isOpenAICompatGatewayProvider } from '@/lib/provider-compat'
 
 const PROBE_TIMEOUT_MS = 15_000
 
@@ -220,7 +221,7 @@ function toTrace(
 export async function probeModelLlmProtocol(
   input: ModelLlmProtocolProbeInput,
 ): Promise<ModelLlmProtocolProbeResult> {
-  if (getProviderKey(input.providerId) !== 'openai-compatible') {
+  if (!isOpenAICompatGatewayProvider(getProviderKey(input.providerId))) {
     throw new Error(`MODEL_LLM_PROTOCOL_PROBE_PROVIDER_UNSUPPORTED: ${input.providerId}`)
   }
 

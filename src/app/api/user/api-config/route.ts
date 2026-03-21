@@ -28,6 +28,10 @@ import {
   listBuiltinPricingCatalog,
   type PricingApiType,
 } from '@/lib/model-pricing/catalog'
+import {
+  isGeminiCompatibleProvider,
+  isOpenAICompatGatewayProvider,
+} from '@/lib/provider-compat'
 import { getBillingMode } from '@/lib/billing/mode'
 import {
   DEFAULT_ANALYSIS_WORKFLOW_CONCURRENCY,
@@ -187,6 +191,7 @@ const PRICING_PROVIDER_ALIASES: Readonly<Record<string, string>> = {
 }
 const OPTIONAL_PRICING_PROVIDER_KEYS = new Set([
   'openai-compatible',
+  'hakimi-compatible',
   'gemini-compatible',
   'bailian',
   'siliconflow',
@@ -470,8 +475,8 @@ function resolveProviderGatewayRoute(
   rawGatewayRoute: unknown,
 ): GatewayRouteType {
   const providerKey = getProviderKey(providerId)
-  const isOpenAICompatibleProvider = providerKey === 'openai-compatible'
-  const isGeminiCompatibleProvider = providerKey === 'gemini-compatible'
+  const isOpenAICompatibleProvider = isOpenAICompatGatewayProvider(providerKey)
+  const isGeminiCompatible = isGeminiCompatibleProvider(providerKey)
 
   if (rawGatewayRoute !== undefined && !isGatewayRoute(rawGatewayRoute)) {
     throw new ApiError('INVALID_PARAMS', {
@@ -488,7 +493,7 @@ function resolveProviderGatewayRoute(
     return 'openai-compat'
   }
 
-  if (isGeminiCompatibleProvider) {
+  if (isGeminiCompatible) {
     if (rawGatewayRoute === 'openai-compat') {
       throw new ApiError('INVALID_PARAMS', {
         code: 'PROVIDER_GATEWAY_ROUTE_INVALID',
@@ -878,7 +883,7 @@ function normalizeProvidersInput(rawProviders: unknown): StoredProvider[] {
         field: `providers[${index}].apiMode`,
       })
     }
-    if (getProviderKey(id) === 'gemini-compatible' && apiModeRaw === 'openai-official') {
+    if (isGeminiCompatibleProvider(getProviderKey(id)) && apiModeRaw === 'openai-official') {
       throw new ApiError('INVALID_PARAMS', {
         code: 'PROVIDER_APIMODE_INVALID',
         field: `providers[${index}].apiMode`,
@@ -967,11 +972,11 @@ function validateModelProviderTypeSupport(models: StoredModel[], providers: Stor
 }
 
 function isOpenAICompatibleLlmModel(model: StoredModel): boolean {
-  return model.type === 'llm' && getProviderKey(model.provider) === 'openai-compatible'
+  return model.type === 'llm' && isOpenAICompatGatewayProvider(getProviderKey(model.provider))
 }
 
 function isOpenAICompatibleMediaTemplateModel(model: StoredModel): boolean {
-  if (getProviderKey(model.provider) !== 'openai-compatible') return false
+  if (!isOpenAICompatGatewayProvider(getProviderKey(model.provider))) return false
   return model.type === 'image' || model.type === 'video'
 }
 
@@ -1435,7 +1440,7 @@ function parseStoredProviders(rawProviders: string | null | undefined): StoredPr
           field: `customProviders[${index}].apiMode`,
         })
       }
-      if (providerKey === 'gemini-compatible' && apiModeRaw === 'openai-official') {
+      if (isGeminiCompatibleProvider(providerKey) && apiModeRaw === 'openai-official') {
         throw new ApiError('INVALID_PARAMS', {
           code: 'PROVIDER_APIMODE_INVALID',
           field: `customProviders[${index}].apiMode`,

@@ -15,6 +15,8 @@ export function ProviderBaseFields({ provider, t, state }: ProviderBaseFieldsPro
     switch (state.providerKey) {
       case 'gemini-compatible':
         return 'https://your-api-domain.com'
+      case 'hakimi-compatible':
+        return 'https://api.hakimi.example/v1'
       case 'openai-compatible':
         return 'https://api.openai.com/v1'
       default:

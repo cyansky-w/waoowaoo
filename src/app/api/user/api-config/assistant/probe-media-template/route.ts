@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
 import { getProviderKey } from '@/lib/api-config'
+import { isOpenAICompatGatewayProvider } from '@/lib/provider-compat'
 import { validateOpenAICompatMediaTemplate } from '@/lib/user-api/model-template'
 import { probeMediaTemplate } from '@/lib/user-api/model-template/probe'
 
@@ -39,7 +40,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
 
   const providerId = readRequiredString(body.providerId, 'providerId')
   const modelId = readRequiredString(body.modelId, 'modelId')
-  if (getProviderKey(providerId) !== 'openai-compatible') {
+  if (!isOpenAICompatGatewayProvider(getProviderKey(providerId))) {
     throw new ApiError('INVALID_PARAMS', {
       code: 'MODEL_TEMPLATE_PROBE_PROVIDER_INVALID',
       field: 'providerId',

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { composeModelKey } from '@/lib/model-config-contract'
 import { getProviderKey } from '@/lib/api-config'
+import { isOpenAICompatGatewayProvider } from '@/lib/provider-compat'
 import type { OpenAICompatMediaTemplate } from '@/lib/openai-compat-media-template'
 
 type StoredModelType = 'llm' | 'image' | 'video' | 'audio' | 'lipsync'
@@ -87,7 +88,7 @@ function hasProvider(rawProviders: string | null | undefined, providerId: string
 export async function saveModelTemplateConfiguration(input: SaveModelTemplateInput): Promise<{
   modelKey: string
 }> {
-  if (getProviderKey(input.providerId) !== 'openai-compatible') {
+  if (!isOpenAICompatGatewayProvider(getProviderKey(input.providerId))) {
     throw new Error('MODEL_TEMPLATE_SAVE_PROVIDER_INVALID')
   }
   if (input.template.mediaType !== input.type) {

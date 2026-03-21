@@ -11,6 +11,7 @@ import {
   getProviderConfig,
   getProviderKey,
 } from '../api-config'
+import { isOpenAICompatGatewayProvider } from '../provider-compat'
 import { getInternalLLMStreamCallbacks } from '../llm-observe/internal-stream-context'
 import type { ChatCompletionOptions } from './types'
 import { extractGoogleParts, extractGoogleUsage, GoogleEmptyResponseError } from './providers/google'
@@ -116,7 +117,7 @@ export async function chatCompletion(
       if (gatewayRoute === 'openai-compat') {
         // openai-compatible protocol probing only applies to openai-compatible + llm.
         // gemini-compatible is explicitly excluded and must not enter this branch.
-        if (providerKey !== 'openai-compatible') {
+        if (!isOpenAICompatGatewayProvider(providerKey)) {
           throw new Error(`OPENAI_COMPAT_PROVIDER_UNSUPPORTED: ${provider}`)
         }
         if (!selection.llmProtocol) {
