@@ -130,6 +130,63 @@ describe('external api logging', () => {
     expect(entry.response.body.images[0]?.url).toBe('https://cdn.example.com/result.png')
   })
 
+  it('writes sanitized request payloads to the audit log', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      id: 'task_456',
+      ok: true,
+    }), {
+      status: 200,
+      headers: {
+        'content-type': 'application/json',
+      },
+    }))
+    const info = vi.fn()
+    const warn = vi.fn()
+    const error = vi.fn()
+    const writeAuditLine = vi.fn()
+
+    const { createExternalApiFetch } = await import('@/lib/logging/external-api')
+    const wrappedFetch = createExternalApiFetch(fetchMock, {
+      logger: { info, warn, error },
+      writeAuditLine,
+      now: () => '2026-03-22T00:00:00.000+08:00',
+    })
+
+    await wrappedFetch('https://api.example.com/v1/images/generate', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        prompt: 'draw a hero portrait',
+        reference_image_b64: 'A'.repeat(12_000),
+        imageDataUrl: 'data:image/png;base64,AAAA',
+      }),
+    })
+    await waitForAsyncLogging()
+
+    expect(writeAuditLine).toHaveBeenCalledTimes(1)
+    const entry = JSON.parse(String(writeAuditLine.mock.calls[0]?.[0])) as {
+      request: {
+        method: string
+        url: string
+        headers: Record<string, string>
+        body: {
+          prompt: string
+          reference_image_b64: string
+          imageDataUrl: string
+        }
+      }
+    }
+
+    expect(entry.request.method).toBe('POST')
+    expect(entry.request.url).toBe('https://api.example.com/v1/images/generate')
+    expect(entry.request.headers['content-type']).toBe('application/json')
+    expect(entry.request.body.prompt).toBe('draw a hero portrait')
+    expect(entry.request.body.reference_image_b64).toContain('[FILE_CONTENT')
+    expect(entry.request.body.imageDataUrl).toContain('[FILE_CONTENT')
+  })
+
   it('replaces binary response bodies with a compact received-file placeholder', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(new Uint8Array([1, 2, 3, 4]), {
       status: 200,

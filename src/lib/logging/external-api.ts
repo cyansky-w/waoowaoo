@@ -177,6 +177,36 @@ function toResponseHeaders(response: Response): Record<string, string> {
   return headers
 }
 
+function toHeadersRecord(headers: Headers): Record<string, string> {
+  const output: Record<string, string> = {}
+  headers.forEach((value, key) => {
+    output[key] = value
+  })
+  return output
+}
+
+function toRequestHeaders(input: RequestInfo | URL, init?: RequestInit): Record<string, string> {
+  const headers = new Headers()
+
+  if (typeof Request !== 'undefined' && input instanceof Request) {
+    input.headers.forEach((value, key) => {
+      headers.set(key, value)
+    })
+  }
+
+  if (init?.headers) {
+    new Headers(init.headers).forEach((value, key) => {
+      headers.set(key, value)
+    })
+  }
+
+  return toHeadersRecord(headers)
+}
+
+function hasOwnKeys(value: Record<string, unknown>): boolean {
+  return Object.keys(value).length > 0
+}
+
 function looksLikeBase64(value: string): boolean {
   if (value.length < 512) return false
   const trimmed = value.trim()
@@ -190,9 +220,21 @@ function buildFilePlaceholder(label: string, details: string[] = []): string {
   return `[${label}${suffix}]`
 }
 
+function buildOutgoingFilePlaceholder(field: string, details: string[] = []): string {
+  return buildFilePlaceholder('FILE_CONTENT', [`field=${field}`, ...details])
+}
+
 function sanitizeStringField(key: string, value: string): string {
   if (value.startsWith('data:')) {
     return buildFilePlaceholder('FILE_CONTENT', [`field=${key}`, 'encoding=data-url'])
+  }
+  if (looksLikeBase64(value)) {
+    if (FILE_FIELD_PATTERN.test(key)) {
+      return buildFilePlaceholder('FILE_CONTENT', [`field=${key}`, 'encoding=base64', `length=${value.length}`])
+    }
+    if (!key || key === 'body') {
+      return buildFilePlaceholder('FILE_CONTENT', [`field=${key || 'body'}`, 'encoding=base64', `length=${value.length}`])
+    }
   }
   if (FILE_FIELD_PATTERN.test(key) && looksLikeBase64(value)) {
     return buildFilePlaceholder('FILE_CONTENT', [`field=${key}`, 'encoding=base64', `length=${value.length}`])
@@ -209,17 +251,16 @@ export function sanitizeExternalApiPayload(value: unknown, currentKey = ''): unk
     return value
   }
   if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) {
-    return buildFilePlaceholder('FILE_RECEIVED', [`field=${currentKey || 'buffer'}`, `size=${value.byteLength} bytes`])
+    return buildOutgoingFilePlaceholder(currentKey || 'buffer', [`size=${value.byteLength} bytes`])
   }
   if (typeof ArrayBuffer !== 'undefined' && value instanceof ArrayBuffer) {
-    return buildFilePlaceholder('FILE_RECEIVED', [`field=${currentKey || 'arrayBuffer'}`, `size=${value.byteLength} bytes`])
+    return buildOutgoingFilePlaceholder(currentKey || 'arrayBuffer', [`size=${value.byteLength} bytes`])
   }
   if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(value)) {
-    return buildFilePlaceholder('FILE_RECEIVED', [`field=${currentKey || 'typedArray'}`, `size=${value.byteLength} bytes`])
+    return buildOutgoingFilePlaceholder(currentKey || 'typedArray', [`size=${value.byteLength} bytes`])
   }
   if (typeof Blob !== 'undefined' && value instanceof Blob) {
-    return buildFilePlaceholder('FILE_RECEIVED', [
-      `field=${currentKey || 'blob'}`,
+    return buildOutgoingFilePlaceholder(currentKey || 'blob', [
       value.type ? `type=${value.type}` : 'type=application/octet-stream',
       `size=${value.size} bytes`,
     ])
@@ -246,6 +287,159 @@ function buildBinaryResponsePlaceholder(response: Response): string {
     details.push(`size=${contentLength.trim()} bytes`)
   }
   return buildFilePlaceholder('FILE_RECEIVED', details)
+}
+
+function appendSnapshotField(target: Record<string, unknown>, key: string, value: unknown) {
+  const existing = target[key]
+  if (existing === undefined) {
+    target[key] = value
+    return
+  }
+  if (Array.isArray(existing)) {
+    existing.push(value)
+    return
+  }
+  target[key] = [existing, value]
+}
+
+function serializeSearchParams(params: URLSearchParams): Record<string, unknown> {
+  const output: Record<string, unknown> = {}
+  for (const [key, value] of params.entries()) {
+    appendSnapshotField(output, key, sanitizeStringField(key, value))
+  }
+  return output
+}
+
+function serializeFormData(formData: FormData): Record<string, unknown> {
+  const output: Record<string, unknown> = {}
+  for (const [key, value] of formData.entries()) {
+    if (typeof value === 'string') {
+      appendSnapshotField(output, key, sanitizeStringField(key, value))
+      continue
+    }
+
+    const details: string[] = []
+    if (typeof File !== 'undefined' && value instanceof File && value.name) {
+      details.push(`name=${value.name}`)
+    }
+    details.push(value.type ? `type=${value.type}` : 'type=application/octet-stream')
+    details.push(`size=${value.size} bytes`)
+    appendSnapshotField(output, key, buildOutgoingFilePlaceholder(key, details))
+  }
+  return output
+}
+
+function isJsonContentType(contentType: string): boolean {
+  return contentType.includes('application/json') || contentType.includes('+json')
+}
+
+function isTextLikeContentType(contentType: string): boolean {
+  return contentType.startsWith('text/')
+    || contentType.includes('xml')
+    || contentType.includes('html')
+    || contentType.includes('event-stream')
+}
+
+function isReadableStreamLike(value: unknown): boolean {
+  return !!value
+    && typeof value === 'object'
+    && (
+      typeof (value as { getReader?: unknown }).getReader === 'function'
+      || typeof (value as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === 'function'
+    )
+}
+
+function buildRequestBinaryPlaceholder(field: string, contentType?: string | null, size?: number | null): string {
+  const details: string[] = []
+  if (contentType) details.push(`type=${contentType}`)
+  if (typeof size === 'number') details.push(`size=${size} bytes`)
+  return buildOutgoingFilePlaceholder(field, details)
+}
+
+function parseTextRequestBody(text: string, contentType: string): unknown {
+  if (!text) return text
+  if (isJsonContentType(contentType)) {
+    try {
+      return sanitizeExternalApiPayload(JSON.parse(text), 'body')
+    } catch {
+      return sanitizeStringField('body', text)
+    }
+  }
+  if (contentType.includes('application/x-www-form-urlencoded')) {
+    return serializeSearchParams(new URLSearchParams(text))
+  }
+  return sanitizeStringField('body', text)
+}
+
+async function readBodyInitSnapshot(body: BodyInit, headers: Record<string, string>): Promise<unknown> {
+  const contentType = (headers['content-type'] || '').toLowerCase()
+
+  if (typeof body === 'string') {
+    return parseTextRequestBody(body, contentType)
+  }
+  if (typeof URLSearchParams !== 'undefined' && body instanceof URLSearchParams) {
+    return serializeSearchParams(body)
+  }
+  if (typeof FormData !== 'undefined' && body instanceof FormData) {
+    return serializeFormData(body)
+  }
+  if (typeof Blob !== 'undefined' && body instanceof Blob) {
+    return buildRequestBinaryPlaceholder('body', body.type || contentType || null, body.size)
+  }
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(body)) {
+    return buildRequestBinaryPlaceholder('body', contentType || 'application/octet-stream', body.byteLength)
+  }
+  if (typeof ArrayBuffer !== 'undefined' && body instanceof ArrayBuffer) {
+    return buildRequestBinaryPlaceholder('body', contentType || 'application/octet-stream', body.byteLength)
+  }
+  if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(body)) {
+    return buildRequestBinaryPlaceholder('body', contentType || 'application/octet-stream', body.byteLength)
+  }
+  if (isReadableStreamLike(body)) {
+    return buildRequestBinaryPlaceholder('body', contentType || 'application/octet-stream')
+  }
+
+  return sanitizeExternalApiPayload(body, 'body')
+}
+
+async function readRequestInputSnapshot(request: Request): Promise<unknown> {
+  const contentType = (request.headers.get('content-type') || '').toLowerCase()
+  if (!request.body) return undefined
+
+  if (isJsonContentType(contentType) || isTextLikeContentType(contentType) || contentType.includes('application/x-www-form-urlencoded')) {
+    return parseTextRequestBody(await request.text(), contentType)
+  }
+
+  if (contentType.includes('multipart/form-data')) {
+    try {
+      return serializeFormData(await request.formData())
+    } catch {
+      return buildRequestBinaryPlaceholder('body', contentType || 'multipart/form-data')
+    }
+  }
+
+  const arrayBuffer = await request.arrayBuffer()
+  return buildRequestBinaryPlaceholder('body', contentType || 'application/octet-stream', arrayBuffer.byteLength)
+}
+
+async function readRequestSnapshot(input: RequestInfo | URL, init?: RequestInit): Promise<{ headers?: Record<string, string>; body?: unknown }> {
+  const headers = toRequestHeaders(input, init)
+  const snapshot: { headers?: Record<string, string>; body?: unknown } = {}
+
+  if (hasOwnKeys(headers as Record<string, unknown>)) {
+    snapshot.headers = headers
+  }
+
+  if (init?.body !== undefined && init.body !== null) {
+    snapshot.body = await readBodyInitSnapshot(init.body, headers)
+    return snapshot
+  }
+
+  if (typeof Request !== 'undefined' && input instanceof Request) {
+    snapshot.body = await readRequestInputSnapshot(input.clone())
+  }
+
+  return snapshot
 }
 
 async function readResponseBodySnapshot(response: Response): Promise<unknown> {
@@ -359,13 +553,31 @@ export function createExternalApiFetch(
         return undefined
       }
     })()
+    let requestSnapshot: { headers?: Record<string, string>; body?: unknown } = {}
+    let requestSnapshotError: string | null = null
+    try {
+      requestSnapshot = await readRequestSnapshot(input, init)
+    } catch (error) {
+      requestSnapshotError = error instanceof Error ? error.message : String(error)
+    }
+
+    const requestAuditEntry: Record<string, unknown> = {
+      method,
+      url,
+    }
+    if (requestSnapshot.headers && hasOwnKeys(requestSnapshot.headers as Record<string, unknown>)) {
+      requestAuditEntry.headers = requestSnapshot.headers
+    }
+    if (requestSnapshot.body !== undefined) {
+      requestAuditEntry.body = requestSnapshot.body
+    }
+    if (requestSnapshotError) {
+      requestAuditEntry.auditError = requestSnapshotError
+    }
 
     const baseAuditEntry = {
       ts: now(),
-      request: {
-        method,
-        url,
-      },
+      request: requestAuditEntry,
       context: {
         requestId: context.requestId || null,
         taskId: context.taskId || null,
@@ -384,8 +596,7 @@ export function createExternalApiFetch(
       projectId: context.projectId,
       userId: context.userId,
       details: {
-        method,
-        url,
+        ...requestAuditEntry,
       },
     })
 
