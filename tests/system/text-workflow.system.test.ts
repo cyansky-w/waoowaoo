@@ -4,7 +4,7 @@ import { installAuthMocks, mockAuthenticated, resetAuthMockState } from '../help
 import { resetSystemState } from '../helpers/db-reset'
 import { prisma } from '../helpers/prisma'
 import { seedMinimalDomainState } from './helpers/seed'
-import { expectLifecycleEvents, listTaskEventTypes, waitForTaskTerminalState } from './helpers/tasks'
+import { expectLifecycleEvents, waitForTaskEventTypes, waitForTaskTerminalState } from './helpers/tasks'
 import { startSystemWorkers, stopSystemWorkers, type SystemWorkers } from './helpers/workers'
 import { createFixtureEpisode, createFixtureNovelProject, createFixtureProject, createFixtureUser } from '../helpers/fixtures'
 
@@ -265,7 +265,7 @@ describe('system - text workflows', () => {
       },
     ])
 
-    const eventTypes = await listTaskEventTypes(json.taskId)
+    const eventTypes = await waitForTaskEventTypes(json.taskId, 'completed')
     expectLifecycleEvents(eventTypes, 'completed')
   })
 
@@ -345,7 +345,7 @@ describe('system - text workflows', () => {
     })
     expect(afterCount).toBe(beforeCount)
 
-    const eventTypes = await listTaskEventTypes(json.taskId)
+    const eventTypes = await waitForTaskEventTypes(json.taskId, 'failed')
     expectLifecycleEvents(eventTypes, 'failed')
   })
 })

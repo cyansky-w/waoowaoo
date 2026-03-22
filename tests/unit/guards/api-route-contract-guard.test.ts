@@ -3,7 +3,7 @@ import {
   API_HANDLER_ALLOWLIST,
   PUBLIC_ROUTE_ALLOWLIST,
   inspectRouteContract,
-} from '../../../scripts/guards/api-route-contract-guard.mjs'
+} from '../../../scripts/guards/api-route-contract-guard-core.mjs'
 
 describe('api route contract guard', () => {
   it('allows explicit public and framework-managed exceptions', () => {

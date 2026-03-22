@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inspectTaskSubmitCompensation } from '../../../scripts/guards/task-submit-compensation-guard.mjs'
+import { inspectTaskSubmitCompensation } from '../../../scripts/guards/task-submit-compensation-guard-core.mjs'
 
 describe('task submit compensation guard', () => {
   it('passes routes that create data before submitTask and define rollback handling', () => {

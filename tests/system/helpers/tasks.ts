@@ -45,6 +45,27 @@ export async function listTaskEventTypes(taskId: string): Promise<TaskEventType[
   return events.map((event) => event.eventType as TaskEventType)
 }
 
+export async function waitForTaskEventTypes(
+  taskId: string,
+  terminal: 'completed' | 'failed',
+  options: WaitTaskOptions = {},
+): Promise<TaskEventType[]> {
+  const timeoutMs = options.timeoutMs ?? 5_000
+  const intervalMs = options.intervalMs ?? 100
+  const startedAt = Date.now()
+  const expectedTerminal = terminal === 'completed' ? TASK_EVENT_TYPE.COMPLETED : TASK_EVENT_TYPE.FAILED
+
+  while (Date.now() - startedAt <= timeoutMs) {
+    const types = await listTaskEventTypes(taskId)
+    if (types.includes(expectedTerminal)) {
+      return types
+    }
+    await sleep(intervalMs)
+  }
+
+  throw new Error(`TASK_EVENT_WAIT_TIMEOUT: ${taskId}:${expectedTerminal}`)
+}
+
 export function expectLifecycleEvents(types: ReadonlyArray<TaskEventType>, terminal: 'completed' | 'failed') {
   const expectedTerminal = terminal === 'completed' ? TASK_EVENT_TYPE.COMPLETED : TASK_EVENT_TYPE.FAILED
   expect(types).toContain(TASK_EVENT_TYPE.CREATED)

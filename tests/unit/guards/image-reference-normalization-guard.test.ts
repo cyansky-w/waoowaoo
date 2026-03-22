@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   NORMALIZATION_HELPER_ALLOWLIST,
   inspectImageReferenceNormalization,
-} from '../../../scripts/guards/image-reference-normalization-guard.mjs'
+} from '../../../scripts/guards/image-reference-normalization-guard-core.mjs'
 
 describe('image reference normalization guard', () => {
   it('allows shared helper exceptions explicitly', () => {
