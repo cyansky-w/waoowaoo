@@ -155,6 +155,7 @@ export async function generateImageViaOpenAICompat(request: OpenAICompatImageReq
     providerId,
     modelId,
     prompt,
+    operation = 'generate',
     referenceImages = [],
     options = {},
   } = request
@@ -170,7 +171,7 @@ export async function generateImageViaOpenAICompat(request: OpenAICompatImageReq
   const rawSize = resolveRawSize(options)
   const size = normalizeOpenAIImageSize(rawSize)
 
-  if (referenceImages.length > 0) {
+  if (operation === 'edit') {
     const response = await client.images.edit({
       model: normalizedModelId,
       prompt,

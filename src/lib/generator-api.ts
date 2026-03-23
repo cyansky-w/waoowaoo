@@ -21,6 +21,7 @@ import {
 } from './model-gateway'
 import { generateBailianAudio, generateBailianImage, generateBailianVideo } from './providers/bailian'
 import { generateSiliconFlowAudio, generateSiliconFlowImage, generateSiliconFlowVideo } from './providers/siliconflow'
+import type { OpenAICompatImageOperation } from './openai-compat-media-template'
 
 const OFFICIAL_ONLY_PROVIDER_KEYS = new Set(['bailian', 'siliconflow'])
 
@@ -69,6 +70,7 @@ export async function generateImage(
     prompt: string,
     options?: {
         referenceImages?: string[]
+        operation?: OpenAICompatImageOperation
         aspectRatio?: string
         resolution?: string
         outputFormat?: string
@@ -117,7 +119,7 @@ export async function generateImage(
     }
 
     // 调用生成（提取 referenceImages 单独传递，其余选项合并进 options）
-    const { referenceImages, ...generatorOptions } = options || {}
+    const { referenceImages, operation = 'generate', ...generatorOptions } = options || {}
     if (gatewayRoute === 'openai-compat') {
         const compatModelId = providerKey === 'hakimi-compatible'
             ? appendHakimiAspectRatioSuffix(selection.modelId, generatorOptions.aspectRatio)
@@ -140,6 +142,7 @@ export async function generateImage(
                 modelId: compatModelId,
                 modelKey: selection.modelKey,
                 prompt,
+                operation,
                 referenceImages,
                 options: {
                     ...compatImageOptions,
@@ -168,6 +171,7 @@ export async function generateImage(
             providerId: selection.provider,
             modelId: compatModelId,
             prompt,
+            operation,
             referenceImages,
             options: {
                 ...openaiCompatOptions,

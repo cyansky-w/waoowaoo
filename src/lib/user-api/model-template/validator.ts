@@ -1,4 +1,5 @@
-import type { OpenAICompatMediaTemplate } from '@/lib/openai-compat-media-template'
+import type { OpenAICompatMediaTemplate, OpenAICompatMediaOperationTemplate } from '@/lib/openai-compat-media-template'
+import { isOpenAICompatImageTemplateV2 } from '@/lib/openai-compat-media-template'
 import {
   parseOpenAICompatMediaTemplate,
   type ModelTemplateValidationIssue,
@@ -32,19 +33,33 @@ function validatePath(path: string, field: string): ModelTemplateValidationIssue
   return null
 }
 
-function validateEndpointPaths(template: OpenAICompatMediaTemplate): ModelTemplateValidationIssue[] {
+function validateOperationEndpointPaths(
+  template: OpenAICompatMediaOperationTemplate,
+  fieldPrefix: string,
+): ModelTemplateValidationIssue[] {
   const issues: ModelTemplateValidationIssue[] = []
-  const createPathIssue = validatePath(template.create.path, 'create.path')
+  const withField = (suffix: string) => (fieldPrefix ? `${fieldPrefix}.${suffix}` : suffix)
+  const createPathIssue = validatePath(template.create.path, withField('create.path'))
   if (createPathIssue) issues.push(createPathIssue)
   if (template.status) {
-    const statusPathIssue = validatePath(template.status.path, 'status.path')
+    const statusPathIssue = validatePath(template.status.path, withField('status.path'))
     if (statusPathIssue) issues.push(statusPathIssue)
   }
   if (template.content) {
-    const contentPathIssue = validatePath(template.content.path, 'content.path')
+    const contentPathIssue = validatePath(template.content.path, withField('content.path'))
     if (contentPathIssue) issues.push(contentPathIssue)
   }
   return issues
+}
+
+function validateEndpointPaths(template: OpenAICompatMediaTemplate): ModelTemplateValidationIssue[] {
+  if (isOpenAICompatImageTemplateV2(template)) {
+    return [
+      ...validateOperationEndpointPaths(template.operations.generate, 'operations.generate'),
+      ...(template.operations.edit ? validateOperationEndpointPaths(template.operations.edit, 'operations.edit') : []),
+    ]
+  }
+  return validateOperationEndpointPaths(template, '')
 }
 
 export function validateOpenAICompatMediaTemplate(raw: unknown): {

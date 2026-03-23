@@ -1,5 +1,6 @@
 import type {
   OpenAICompatMediaTemplate,
+  OpenAICompatMediaOperationTemplate,
   TemplateBodyValue,
   TemplateEndpoint,
   TemplatePollingConfig,
@@ -352,17 +353,20 @@ function readPollingConfig(
   }
 }
 
-function validateModeSpecificRequirements(
-  template: OpenAICompatMediaTemplate,
+function validateOperationRequirements(
+  template: OpenAICompatMediaOperationTemplate,
+  fieldPrefix: string,
   issues: ModelTemplateValidationIssue[],
 ) {
+  const withField = (suffix: string) => (fieldPrefix ? `${fieldPrefix}.${suffix}` : suffix)
+
   if (
     (template.create.method === 'POST' || template.create.method === 'PUT' || template.create.method === 'PATCH')
     && template.create.bodyTemplate === undefined
   ) {
     issues.push({
       code: 'MODEL_TEMPLATE_UNMAPPABLE',
-      field: 'create.bodyTemplate',
+      field: withField('create.bodyTemplate'),
       message: `${template.create.method} create endpoint requires bodyTemplate`,
     })
   }
@@ -371,7 +375,7 @@ function validateModeSpecificRequirements(
     if (!isRecord(template.create.bodyTemplate)) {
       issues.push({
         code: 'MODEL_TEMPLATE_UNMAPPABLE',
-        field: 'create.bodyTemplate',
+        field: withField('create.bodyTemplate'),
         message: 'multipart create endpoint requires object bodyTemplate',
       })
     } else {
@@ -380,7 +384,7 @@ function validateModeSpecificRequirements(
         if (!topLevelField || !(topLevelField in template.create.bodyTemplate)) {
           issues.push({
             code: 'MODEL_TEMPLATE_UNMAPPABLE',
-            field: 'create.multipartFileFields',
+            field: withField('create.multipartFileFields'),
             message: `multipart file field not found in bodyTemplate: ${fieldPath}`,
           })
         }
@@ -392,35 +396,35 @@ function validateModeSpecificRequirements(
     if (!template.status) {
       issues.push({
         code: 'MODEL_TEMPLATE_UNMAPPABLE',
-        field: 'status',
+        field: withField('status'),
         message: 'async mode requires status endpoint',
       })
     }
     if (!template.response.taskIdPath) {
       issues.push({
         code: 'MODEL_TEMPLATE_UNMAPPABLE',
-        field: 'response.taskIdPath',
+        field: withField('response.taskIdPath'),
         message: 'async mode requires response.taskIdPath',
       })
     }
     if (!template.response.statusPath) {
       issues.push({
         code: 'MODEL_TEMPLATE_UNMAPPABLE',
-        field: 'response.statusPath',
+        field: withField('response.statusPath'),
         message: 'async mode requires response.statusPath',
       })
     }
     if (!template.polling) {
       issues.push({
         code: 'MODEL_TEMPLATE_UNMAPPABLE',
-        field: 'polling',
+        field: withField('polling'),
         message: 'async mode requires polling config',
       })
     }
     if (template.status && !/\{\{\s*task_id\s*\}\}/.test(template.status.path)) {
       issues.push({
         code: 'MODEL_TEMPLATE_UNMAPPABLE',
-        field: 'status.path',
+        field: withField('status.path'),
         message: 'async status endpoint path must include {{task_id}} placeholder',
       })
     }
@@ -430,9 +434,60 @@ function validateModeSpecificRequirements(
   if (!template.response.outputUrlPath && !template.response.outputUrlsPath) {
     issues.push({
       code: 'MODEL_TEMPLATE_UNMAPPABLE',
-      field: 'response',
+      field: withField('response'),
       message: 'sync mode requires outputUrlPath or outputUrlsPath',
     })
+  }
+}
+
+function readOperationTemplate(
+  value: unknown,
+  field: string,
+  issues: ModelTemplateValidationIssue[],
+): OpenAICompatMediaOperationTemplate | null {
+  if (!isRecord(value)) {
+    issues.push({
+      code: 'MODEL_TEMPLATE_INVALID',
+      field,
+      message: 'operation must be an object',
+    })
+    return null
+  }
+
+  const mode = value.mode
+  if (mode !== 'sync' && mode !== 'async') {
+    issues.push({
+      code: 'MODEL_TEMPLATE_INVALID',
+      field: `${field}.mode`,
+      message: 'mode must be sync or async',
+    })
+  }
+
+  const create = readTemplateEndpoint(value.create, `${field}.create`, { allowBody: true }, issues)
+  const status = value.status === undefined
+    ? undefined
+    : readTemplateEndpoint(value.status, `${field}.status`, { allowBody: false }, issues) || undefined
+  const content = value.content === undefined
+    ? undefined
+    : readTemplateEndpoint(value.content, `${field}.content`, { allowBody: false }, issues) || undefined
+  const response = value.response === undefined
+    ? {}
+    : readResponseMap(value.response, `${field}.response`, issues)
+  const polling = value.polling === undefined
+    ? undefined
+    : readPollingConfig(value.polling, `${field}.polling`, issues) || undefined
+
+  if (issues.length > 0 || !create || !response || (mode !== 'sync' && mode !== 'async')) {
+    return null
+  }
+
+  return {
+    mode,
+    create,
+    ...(status ? { status } : {}),
+    ...(content ? { content } : {}),
+    response,
+    ...(polling ? { polling } : {}),
   }
 }
 
@@ -450,11 +505,11 @@ export function parseOpenAICompatMediaTemplate(raw: unknown): {
     }
   }
 
-  if (raw.version !== 1) {
+  if (raw.version !== 1 && raw.version !== 2) {
     issues.push({
       code: 'MODEL_TEMPLATE_INVALID',
       field: 'version',
-      message: 'version must be 1',
+      message: 'version must be 1 or 2',
     })
   }
 
@@ -465,6 +520,65 @@ export function parseOpenAICompatMediaTemplate(raw: unknown): {
       field: 'mediaType',
       message: 'mediaType must be image or video',
     })
+  }
+
+  if (issues.length > 0 || (mediaType !== 'image' && mediaType !== 'video')) {
+    return { template: null, issues }
+  }
+
+  if (raw.version === 2) {
+    if (mediaType !== 'image') {
+      issues.push({
+        code: 'MODEL_TEMPLATE_INVALID',
+        field: 'mediaType',
+        message: 'version 2 is only supported for image templates',
+      })
+      return { template: null, issues }
+    }
+    if (!isRecord(raw.operations)) {
+      issues.push({
+        code: 'MODEL_TEMPLATE_INVALID',
+        field: 'operations',
+        message: 'operations must be an object',
+      })
+      return { template: null, issues }
+    }
+
+    const generate = readOperationTemplate(raw.operations.generate, 'operations.generate', issues)
+    const edit = raw.operations.edit === undefined
+      ? undefined
+      : readOperationTemplate(raw.operations.edit, 'operations.edit', issues) || undefined
+
+    if (!generate) {
+      issues.push({
+        code: 'MODEL_TEMPLATE_INVALID',
+        field: 'operations.generate',
+        message: 'generate operation is required',
+      })
+    }
+    if (issues.length > 0 || !generate) {
+      return { template: null, issues }
+    }
+
+    validateOperationRequirements(generate, 'operations.generate', issues)
+    if (edit) {
+      validateOperationRequirements(edit, 'operations.edit', issues)
+    }
+    if (issues.length > 0) {
+      return { template: null, issues }
+    }
+
+    return {
+      template: {
+        version: 2,
+        mediaType: 'image',
+        operations: {
+          generate,
+          ...(edit ? { edit } : {}),
+        },
+      },
+      issues: [],
+    }
   }
 
   const mode = raw.mode
@@ -490,7 +604,7 @@ export function parseOpenAICompatMediaTemplate(raw: unknown): {
     ? undefined
     : readPollingConfig(raw.polling, 'polling', issues) || undefined
 
-  if (issues.length > 0 || !create || !response || (mode !== 'sync' && mode !== 'async') || (mediaType !== 'image' && mediaType !== 'video')) {
+  if (issues.length > 0 || !create || !response || (mode !== 'sync' && mode !== 'async')) {
     return { template: null, issues }
   }
 
@@ -504,7 +618,7 @@ export function parseOpenAICompatMediaTemplate(raw: unknown): {
     response,
     ...(polling ? { polling } : {}),
   }
-  validateModeSpecificRequirements(normalizedTemplate, issues)
+  validateOperationRequirements(normalizedTemplate, '', issues)
   if (issues.length > 0) {
     return { template: null, issues }
   }

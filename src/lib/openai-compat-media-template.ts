@@ -39,9 +39,7 @@ export interface TemplatePollingConfig {
   failStates: string[]
 }
 
-export interface OpenAICompatMediaTemplate {
-  version: 1
-  mediaType: 'image' | 'video'
+export interface OpenAICompatMediaOperationTemplate {
   mode: 'sync' | 'async'
   create: TemplateEndpoint
   status?: TemplateEndpoint
@@ -50,7 +48,50 @@ export interface OpenAICompatMediaTemplate {
   polling?: TemplatePollingConfig
 }
 
+export interface OpenAICompatLegacyMediaTemplate extends OpenAICompatMediaOperationTemplate {
+  version: 1
+  mediaType: 'image' | 'video'
+}
+
+export interface OpenAICompatImageTemplateV2 {
+  version: 2
+  mediaType: 'image'
+  operations: {
+    generate: OpenAICompatMediaOperationTemplate
+    edit?: OpenAICompatMediaOperationTemplate
+  }
+}
+
+export type OpenAICompatMediaTemplate =
+  | OpenAICompatLegacyMediaTemplate
+  | OpenAICompatImageTemplateV2
+
 export type OpenAICompatMediaTemplateSource = 'ai' | 'manual'
+
+export type OpenAICompatImageOperation = 'generate' | 'edit'
+
+export function isOpenAICompatImageTemplateV2(
+  template: OpenAICompatMediaTemplate,
+): template is OpenAICompatImageTemplateV2 {
+  return template.version === 2 && template.mediaType === 'image'
+}
+
+export function resolveOpenAICompatTemplateOperation(
+  template: OpenAICompatMediaTemplate,
+  operation: OpenAICompatImageOperation = 'generate',
+): OpenAICompatMediaOperationTemplate | null {
+  if (isOpenAICompatImageTemplateV2(template)) {
+    return operation === 'edit'
+      ? template.operations.edit || null
+      : template.operations.generate
+  }
+
+  if (template.mediaType === 'image' && operation === 'edit') {
+    return null
+  }
+
+  return template
+}
 
 export const TEMPLATE_PLACEHOLDER_ALLOWLIST = new Set([
   'model',

@@ -101,6 +101,7 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
       userId: job.data.userId,
       modelId: editModel,
       prompt,
+      operation: 'edit',
       options: {
         referenceImages,
         aspectRatio: '3:2',
@@ -204,6 +205,7 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
       userId: job.data.userId,
       modelId: editModel,
       prompt,
+      operation: 'edit',
       options: {
         referenceImages,
         aspectRatio: '1:1',
@@ -323,6 +325,7 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
       userId: job.data.userId,
       modelId: editModel,
       prompt,
+      operation: 'edit',
       options: {
         referenceImages: uniqueReferences,
         aspectRatio,

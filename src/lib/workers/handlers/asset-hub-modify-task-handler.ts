@@ -133,6 +133,7 @@ export async function handleAssetHubModifyTask(job: Job<TaskJobData>) {
       userId,
       modelId: editModel,
       prompt,
+      operation: 'edit',
       options: {
         referenceImages,
         aspectRatio: '3:2',
@@ -221,6 +222,7 @@ export async function handleAssetHubModifyTask(job: Job<TaskJobData>) {
       userId,
       modelId: editModel,
       prompt,
+      operation: 'edit',
       options: {
         referenceImages,
         aspectRatio: '1:1',

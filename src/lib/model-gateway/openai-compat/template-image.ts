@@ -1,6 +1,10 @@
 import type { GenerateResult } from '@/lib/generators/base'
 import type { OpenAICompatImageRequest } from '../types'
 import {
+  resolveOpenAICompatTemplateOperation,
+  type OpenAICompatImageOperation,
+} from '@/lib/openai-compat-media-template'
+import {
   buildRenderedTemplateRequest,
   buildTemplateVariables,
   extractTemplateError,
@@ -62,6 +66,11 @@ export async function generateImageViaOpenAICompatTemplate(
   if (request.template.mediaType !== 'image') {
     throw new Error('OPENAI_COMPAT_IMAGE_TEMPLATE_MEDIA_TYPE_INVALID')
   }
+  const operation: OpenAICompatImageOperation = request.operation || 'generate'
+  const operationTemplate = resolveOpenAICompatTemplateOperation(request.template, operation)
+  if (!operationTemplate) {
+    throw new Error(`OPENAI_COMPAT_IMAGE_TEMPLATE_OPERATION_UNSUPPORTED: ${operation}`)
+  }
 
   const config = await resolveOpenAICompatClientConfig(request.userId, request.providerId)
   const firstReference = Array.isArray(request.referenceImages) && request.referenceImages.length > 0
@@ -80,7 +89,7 @@ export async function generateImageViaOpenAICompatTemplate(
 
   const createRequest = await buildRenderedTemplateRequest({
     baseUrl: config.baseUrl,
-    endpoint: request.template.create,
+    endpoint: operationTemplate.create,
     variables,
     defaultAuthHeader: `Bearer ${config.apiKey}`,
   })
@@ -95,12 +104,12 @@ export async function generateImageViaOpenAICompatTemplate(
   const rawText = await response.text().catch(() => '')
   const payload = normalizeResponseJson(rawText)
   if (!response.ok) {
-    throw new Error(extractTemplateError(request.template, payload, response.status))
+    throw new Error(extractTemplateError(operationTemplate, payload, response.status))
   }
 
-  if (request.template.mode === 'sync') {
+  if (operationTemplate.mode === 'sync') {
     const outputUrls = readTemplateOutputUrls(
-      readJsonPath(payload, request.template.response.outputUrlsPath),
+      readJsonPath(payload, operationTemplate.response.outputUrlsPath),
     )
     if (outputUrls.length > 0) {
       const first = outputUrls[0]
@@ -111,7 +120,7 @@ export async function generateImageViaOpenAICompatTemplate(
       }
     }
 
-    const outputUrl = readJsonPath(payload, request.template.response.outputUrlPath)
+    const outputUrl = readJsonPath(payload, operationTemplate.response.outputUrlPath)
     if (typeof outputUrl === 'string' && outputUrl.trim().length > 0) {
       return {
         success: true,
@@ -121,7 +130,7 @@ export async function generateImageViaOpenAICompatTemplate(
     throw new Error('OPENAI_COMPAT_IMAGE_TEMPLATE_OUTPUT_NOT_FOUND')
   }
 
-  const taskIdRaw = readJsonPath(payload, request.template.response.taskIdPath)
+  const taskIdRaw = readJsonPath(payload, operationTemplate.response.taskIdPath)
   const taskId = typeof taskIdRaw === 'string' ? taskIdRaw.trim() : ''
   if (!taskId) {
     throw new Error('OPENAI_COMPAT_IMAGE_TEMPLATE_TASK_ID_NOT_FOUND')
@@ -132,6 +141,6 @@ export async function generateImageViaOpenAICompatTemplate(
     success: true,
     async: true,
     requestId: taskId,
-    externalId: `OCOMPAT:IMAGE:${providerToken}:${modelRefToken}:${taskId}`,
+    externalId: `OCOMPAT:IMAGE:${providerToken}:${modelRefToken}:${operation}:${taskId}`,
   }
 }

@@ -74,7 +74,7 @@ describe('OpenAICompatibleImageGenerator', () => {
     })
   })
 
-  it('uses official images.edit payload when reference images are provided', async () => {
+  it('uses official images.edit payload when operation is edit', async () => {
     openAIState.edit.mockResolvedValueOnce({
       data: [{ b64_json: 'ZWRpdA==' }],
     })
@@ -86,6 +86,7 @@ describe('OpenAICompatibleImageGenerator', () => {
       referenceImages: ['data:image/png;base64,QQ=='],
       options: {
         quality: 'medium',
+        operation: 'edit',
       },
     })
 

@@ -163,4 +163,61 @@ describe('async poll ocompat', () => {
       videoUrl: 'https://cdn.test/video-fast.mp4',
     })
   })
+
+  it('supports async image edit operation tokens for operation-aware templates', async () => {
+    getUserModelsMock.mockResolvedValueOnce([
+      {
+        modelKey: 'openai-compatible:oa-1::gpt-image-1',
+        modelId: 'gpt-image-1',
+        name: 'GPT Image 1',
+        type: 'image',
+        provider: 'openai-compatible:oa-1',
+        price: 0,
+        compatMediaTemplate: {
+          version: 2,
+          mediaType: 'image',
+          operations: {
+            generate: {
+              mode: 'sync',
+              create: { method: 'POST', path: '/v1/images/generations' },
+              response: {
+                outputUrlPath: '$.data[0].url',
+              },
+            },
+            edit: {
+              mode: 'async',
+              create: { method: 'POST', path: '/v1/images/edits' },
+              status: { method: 'GET', path: '/v1/images/edits/{{task_id}}' },
+              response: {
+                statusPath: '$.status',
+                outputUrlPath: '$.image_url',
+              },
+              polling: {
+                intervalMs: 3000,
+                timeoutMs: 180000,
+                doneStates: ['succeeded'],
+                failStates: ['failed'],
+              },
+            },
+          },
+        },
+      },
+    ])
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      status: 'succeeded',
+      image_url: 'https://cdn.test/image-edit.png',
+    }), { status: 200 }))
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const result = await pollAsyncTask(
+      `OCOMPAT:IMAGE:${encode('openai-compatible:oa-1')}:${encode('openai-compatible:oa-1::gpt-image-1')}:edit:task_4`,
+      'user-1',
+    )
+
+    expect(result).toEqual({
+      status: 'completed',
+      resultUrl: 'https://cdn.test/image-edit.png',
+      imageUrl: 'https://cdn.test/image-edit.png',
+    })
+  })
 })

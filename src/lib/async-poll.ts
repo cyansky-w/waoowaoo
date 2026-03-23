@@ -21,6 +21,7 @@ import { queryGeminiBatchStatus, querySeedanceVideoStatus, queryGoogleVideoStatu
 import { getProviderConfig, getUserModels } from './api-config'
 import { buildRenderedTemplateRequest, buildTemplateVariables, normalizeResponseJson, readJsonPath } from './openai-compat-template-runtime'
 import { composeModelKey } from './model-config-contract'
+import { resolveOpenAICompatTemplateOperation, type OpenAICompatImageOperation } from './openai-compat-media-template'
 
 const OPENAI_COMPAT_PROVIDER_PREFIX = 'openai-compatible:'
 const PROVIDER_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -53,6 +54,7 @@ export function parseExternalId(externalId: string): {
     requestId: string
     providerToken?: string
     modelKeyToken?: string
+    operation?: OpenAICompatImageOperation
 } {
     // 标准格式：PROVIDER:TYPE:...
     if (externalId.startsWith('FAL:')) {
@@ -168,7 +170,10 @@ export function parseExternalId(externalId: string): {
         const type = parts[1]
         const providerToken = parts[2]
         const modelKeyToken = parts[3]
-        const requestId = parts.slice(4).join(':')
+        const operation = type === 'IMAGE' && (parts[4] === 'generate' || parts[4] === 'edit')
+            ? parts[4] as OpenAICompatImageOperation
+            : undefined
+        const requestId = parts.slice(operation ? 5 : 4).join(':')
         if ((type !== 'VIDEO' && type !== 'IMAGE') || !providerToken || !modelKeyToken || !requestId) {
             throw new Error(`无效 OCOMPAT externalId: "${externalId}"，应为 OCOMPAT:TYPE:providerToken:modelKeyToken:taskId`)
         }
@@ -178,6 +183,7 @@ export function parseExternalId(externalId: string): {
             providerToken,
             modelKeyToken,
             requestId,
+            ...(operation ? { operation } : {}),
         }
     }
 
@@ -246,7 +252,7 @@ export async function pollAsyncTask(
         case 'OPENAI':
             return await pollOpenAIVideoTask(parsed.requestId, userId, parsed.providerToken)
         case 'OCOMPAT':
-            return await pollOCompatTask(parsed.type, parsed.requestId, userId, parsed.providerToken, parsed.modelKeyToken)
+            return await pollOCompatTask(parsed.type, parsed.requestId, userId, parsed.providerToken, parsed.modelKeyToken, parsed.operation)
         case 'BAILIAN':
             return await pollBailianTask(parsed.requestId, userId)
         case 'SILICONFLOW':
@@ -313,6 +319,7 @@ async function pollOCompatTask(
     userId: string,
     providerToken?: string,
     modelKeyToken?: string,
+    operation?: OpenAICompatImageOperation,
 ): Promise<PollResult> {
     if (!providerToken) throw new Error('OCOMPAT_PROVIDER_TOKEN_MISSING')
     if (!modelKeyToken) throw new Error('OCOMPAT_MODEL_KEY_TOKEN_MISSING')
@@ -326,8 +333,8 @@ async function pollOCompatTask(
     if (!model || !model.compatMediaTemplate) {
         throw new Error(`OCOMPAT_TEMPLATE_NOT_FOUND: ${modelKey}`)
     }
-    const template = model.compatMediaTemplate
-    if (template.mode !== 'async' || !template.status) {
+    const template = resolveOpenAICompatTemplateOperation(model.compatMediaTemplate, operation || 'generate')
+    if (!template || template.mode !== 'async' || !template.status) {
         throw new Error(`OCOMPAT_TEMPLATE_NOT_ASYNC: ${modelKey}`)
     }
 

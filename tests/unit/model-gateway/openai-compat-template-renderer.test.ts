@@ -156,26 +156,9 @@ describe('model-gateway openai-compat template renderer', () => {
 
   it('extracts upstream error message from common payload shape', () => {
     const message = extractTemplateError({
-      version: 1,
-      mediaType: 'video',
-      mode: 'async',
-      create: {
-        method: 'POST',
-        path: '/video/create',
-      },
-      status: {
-        method: 'GET',
-        path: '/video/query?id={{task_id}}',
-      },
       response: {
         taskIdPath: '$.id',
         statusPath: '$.status',
-      },
-      polling: {
-        intervalMs: 5000,
-        timeoutMs: 600000,
-        doneStates: ['completed'],
-        failStates: ['failed'],
       },
     }, {
       error: {

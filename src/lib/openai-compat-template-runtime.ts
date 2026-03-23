@@ -1,5 +1,5 @@
 import type {
-  OpenAICompatMediaTemplate,
+  OpenAICompatMediaOperationTemplate,
   TemplateBodyValue,
   TemplateEndpoint,
   TemplateHeaderMap,
@@ -450,7 +450,7 @@ export function buildTemplateVariables(input: {
 }
 
 export function extractTemplateError(
-  template: OpenAICompatMediaTemplate,
+  template: Pick<OpenAICompatMediaOperationTemplate, 'response'>,
   payload: unknown,
   status: number,
 ): string {

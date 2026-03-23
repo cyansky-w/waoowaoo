@@ -8,6 +8,7 @@ import { pollAsyncTask } from '@/lib/async-poll'
 import { getSignedUrl, toFetchableUrl } from '@/lib/storage'
 import { initializeFonts, createLabelSVG } from '@/lib/fonts'
 import { processMediaResult } from '@/lib/media-process'
+import type { OpenAICompatImageOperation } from '@/lib/openai-compat-media-template'
 import {
   getProjectModelConfig,
   getUserModelConfig,
@@ -166,6 +167,7 @@ export async function resolveImageSourceFromGeneration(
     userId: string
     modelId: string
     prompt: string
+    operation?: OpenAICompatImageOperation
     options?: {
       referenceImages?: string[]
       aspectRatio?: string
@@ -231,6 +233,7 @@ export async function resolveImageSourceFromGeneration(
   const result = await withLogContext(
     { projectId: job.data.projectId, taskId: job.data.taskId, userId: params.userId },
     () => generateImage(params.userId, params.modelId, params.prompt, {
+      ...(params.operation ? { operation: params.operation } : {}),
       ...params.options,
       ...capabilityOptions,
     }),
@@ -292,6 +295,7 @@ export async function resolveImageSourcesFromGeneration(
     userId: string
     modelId: string
     prompt: string
+    operation?: OpenAICompatImageOperation
     options?: {
       referenceImages?: string[]
       aspectRatio?: string
@@ -345,6 +349,7 @@ export async function resolveImageSourcesFromGeneration(
   const result = await withLogContext(
     { projectId: job.data.projectId, taskId: job.data.taskId, userId: params.userId },
     () => generateImage(params.userId, params.modelId, params.prompt, {
+      ...(params.operation ? { operation: params.operation } : {}),
       ...params.options,
       ...capabilityOptions,
     }),

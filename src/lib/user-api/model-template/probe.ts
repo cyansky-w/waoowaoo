@@ -1,4 +1,5 @@
 import type { OpenAICompatMediaTemplate } from '@/lib/openai-compat-media-template'
+import { resolveOpenAICompatTemplateOperation } from '@/lib/openai-compat-media-template'
 import { resolveOpenAICompatClientConfig } from '@/lib/model-gateway/openai-compat/common'
 import {
   buildRenderedTemplateRequest,
@@ -56,10 +57,21 @@ export async function probeMediaTemplate(input: {
     prompt: input.samplePrompt || 'probe',
     image: input.sampleImage || '',
   })
+  const operationTemplate = resolveOpenAICompatTemplateOperation(input.template, 'generate')
+  if (!operationTemplate) {
+    return {
+      success: false,
+      verified: false,
+      code: 'MODEL_TEMPLATE_PROBE_FAILED',
+      checkedAt,
+      traces,
+      message: 'image edit template is configured without generate operation',
+    }
+  }
 
   const createRequest = await buildRenderedTemplateRequest({
     baseUrl: config.baseUrl,
-    endpoint: input.template.create,
+    endpoint: operationTemplate.create,
     variables,
     defaultAuthHeader: `Bearer ${config.apiKey}`,
   })
@@ -88,13 +100,13 @@ export async function probeMediaTemplate(input: {
       code: 'MODEL_TEMPLATE_PROBE_FAILED',
       checkedAt,
       traces,
-      message: extractTemplateError(input.template, createPayload, createResponse.status),
+      message: extractTemplateError(operationTemplate, createPayload, createResponse.status),
     }
   }
 
-  if (input.template.mode === 'sync') {
-    const outputUrl = readJsonPath(createPayload, input.template.response.outputUrlPath)
-    const outputUrls = readJsonPath(createPayload, input.template.response.outputUrlsPath)
+  if (operationTemplate.mode === 'sync') {
+    const outputUrl = readJsonPath(createPayload, operationTemplate.response.outputUrlPath)
+    const outputUrls = readJsonPath(createPayload, operationTemplate.response.outputUrlsPath)
     const hasSingle = typeof outputUrl === 'string' && outputUrl.trim().length > 0
     const hasArray = Array.isArray(outputUrls) && outputUrls.length > 0
     if (!hasSingle && !hasArray) {
@@ -115,9 +127,9 @@ export async function probeMediaTemplate(input: {
     }
   }
 
-  const taskIdRaw = readJsonPath(createPayload, input.template.response.taskIdPath)
+  const taskIdRaw = readJsonPath(createPayload, operationTemplate.response.taskIdPath)
   const taskId = typeof taskIdRaw === 'string' ? taskIdRaw.trim() : ''
-  if (!taskId || !input.template.status) {
+  if (!taskId || !operationTemplate.status) {
     return {
       success: false,
       verified: false,
@@ -135,7 +147,7 @@ export async function probeMediaTemplate(input: {
   })
   const statusRequest = await buildRenderedTemplateRequest({
     baseUrl: config.baseUrl,
-    endpoint: input.template.status,
+    endpoint: operationTemplate.status,
     variables: statusVariables,
     defaultAuthHeader: `Bearer ${config.apiKey}`,
   })

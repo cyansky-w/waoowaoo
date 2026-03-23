@@ -204,6 +204,48 @@ describe('generator-api gateway routing', () => {
     expect(result).toEqual({ success: true, imageUrl: 'compat-template-image' })
   })
 
+  it('passes image edit operation through to openai-compat template gateway', async () => {
+    resolveModelSelectionMock.mockResolvedValueOnce({
+      provider: 'openai-compatible:oa-1',
+      modelId: 'gpt-image-1',
+      modelKey: 'openai-compatible:oa-1::gpt-image-1',
+      mediaType: 'image',
+      compatMediaTemplate: {
+        version: 2,
+        mediaType: 'image',
+        operations: {
+          generate: {
+            mode: 'sync',
+            create: { method: 'POST', path: '/v1/images/generations' },
+            response: { outputUrlPath: '$.data[0].url' },
+          },
+          edit: {
+            mode: 'sync',
+            create: { method: 'POST', path: '/v1/images/edits' },
+            response: { outputUrlPath: '$.data[0].url' },
+          },
+        },
+      },
+    })
+    resolveModelGatewayRouteMock.mockReturnValueOnce('openai-compat')
+
+    const result = await generateImage(
+      'user-1',
+      'openai-compatible:oa-1::gpt-image-1',
+      'edit cat',
+      {
+        referenceImages: ['data:image/png;base64,QQ=='],
+        operation: 'edit',
+      } as never,
+    )
+
+    expect(generateImageViaOpenAICompatTemplateMock).toHaveBeenCalledWith(expect.objectContaining({
+      operation: 'edit',
+      referenceImages: ['data:image/png;base64,QQ=='],
+    }))
+    expect(result).toEqual({ success: true, imageUrl: 'compat-template-image' })
+  })
+
   it('routes openai-compatible video requests to openai-compat gateway', async () => {
     resolveModelSelectionMock.mockResolvedValueOnce({
       provider: 'openai-compatible:oa-1',

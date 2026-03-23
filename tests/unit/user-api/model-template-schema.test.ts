@@ -35,7 +35,10 @@ describe('user-api model template schema', () => {
     })
 
     expect(result.ok).toBe(true)
-    expect(result.template?.mode).toBe('async')
+    if (!result.template || result.template.version !== 1) {
+      throw new Error('expected version 1 template')
+    }
+    expect(result.template.mode).toBe('async')
   })
 
   it('rejects unsupported placeholders', () => {
@@ -191,7 +194,132 @@ describe('user-api model template schema', () => {
     })
 
     expect(result.ok).toBe(true)
-    expect(result.template?.create.multipartFileFields).toEqual(['input_reference'])
+    if (!result.template || result.template.version !== 1) {
+      throw new Error('expected version 1 template')
+    }
+    expect(result.template.create.multipartFileFields).toEqual(['input_reference'])
+  })
+
+  it('accepts image templates with separate generate and edit operations', () => {
+    const result = validateOpenAICompatMediaTemplate({
+      version: 2,
+      mediaType: 'image',
+      operations: {
+        generate: {
+          mode: 'sync',
+          create: {
+            method: 'POST',
+            path: '/v1/images/generations',
+            contentType: 'application/json',
+            bodyTemplate: {
+              model: '{{model}}',
+              prompt: '{{prompt}}',
+              image: '{{images}}',
+            },
+          },
+          response: {
+            outputUrlPath: '$.data[0].url',
+          },
+        },
+        edit: {
+          mode: 'sync',
+          create: {
+            method: 'POST',
+            path: '/v1/images/edits',
+            contentType: 'multipart/form-data',
+            multipartFileFields: ['image'],
+            bodyTemplate: {
+              model: '{{model}}',
+              prompt: '{{prompt}}',
+              image: '{{images}}',
+            },
+          },
+          response: {
+            outputUrlPath: '$.data[0].url',
+          },
+        },
+      },
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.template?.version).toBe(2)
+    if (!result.template || result.template.version !== 2 || result.template.mediaType !== 'image') {
+      throw new Error('expected version 2 image template')
+    }
+    expect(result.template.operations.generate.create.path).toBe('/v1/images/generations')
+    expect(result.template.operations.edit?.create.path).toBe('/v1/images/edits')
+  })
+
+  it('rejects image operation templates missing generate', () => {
+    const result = validateOpenAICompatMediaTemplate({
+      version: 2,
+      mediaType: 'image',
+      operations: {
+        edit: {
+          mode: 'sync',
+          create: {
+            method: 'POST',
+            path: '/v1/images/edits',
+            contentType: 'multipart/form-data',
+            multipartFileFields: ['image'],
+            bodyTemplate: {
+              model: '{{model}}',
+              prompt: '{{prompt}}',
+              image: '{{images}}',
+            },
+          },
+          response: {
+            outputUrlPath: '$.data[0].url',
+          },
+        },
+      },
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.issues.some((issue) => issue.field === 'operations.generate')).toBe(true)
+  })
+
+  it('rejects edit multipart file fields that are not present in bodyTemplate', () => {
+    const result = validateOpenAICompatMediaTemplate({
+      version: 2,
+      mediaType: 'image',
+      operations: {
+        generate: {
+          mode: 'sync',
+          create: {
+            method: 'POST',
+            path: '/v1/images/generations',
+            contentType: 'application/json',
+            bodyTemplate: {
+              model: '{{model}}',
+              prompt: '{{prompt}}',
+            },
+          },
+          response: {
+            outputUrlPath: '$.data[0].url',
+          },
+        },
+        edit: {
+          mode: 'sync',
+          create: {
+            method: 'POST',
+            path: '/v1/images/edits',
+            contentType: 'multipart/form-data',
+            multipartFileFields: ['image'],
+            bodyTemplate: {
+              model: '{{model}}',
+              prompt: '{{prompt}}',
+            },
+          },
+          response: {
+            outputUrlPath: '$.data[0].url',
+          },
+        },
+      },
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.issues.some((issue) => issue.field === 'operations.edit.create.multipartFileFields')).toBe(true)
   })
 
   it('rejects multipart file fields that are not present in bodyTemplate', () => {

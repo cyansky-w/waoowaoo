@@ -172,6 +172,13 @@ describe('modify image syncs descriptions after edit', () => {
 
     await handleModifyAssetImageTask(job)
 
+    expect(utilsMock.resolveImageSourceFromGeneration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        operation: 'edit',
+      }),
+    )
+
     expect(aiRuntimeMock.executeAiTextStep).toHaveBeenCalledTimes(1)
     expect(aiRuntimeMock.executeAiVisionStep).not.toHaveBeenCalled()
 
@@ -198,6 +205,13 @@ describe('modify image syncs descriptions after edit', () => {
     })
 
     await handleAssetHubModifyTask(job)
+
+    expect(utilsMock.resolveImageSourceFromGeneration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        operation: 'edit',
+      }),
+    )
 
     expect(aiRuntimeMock.executeAiVisionStep).toHaveBeenCalledTimes(1)
 

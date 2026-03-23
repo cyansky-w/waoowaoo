@@ -117,6 +117,7 @@ describe('worker image-task-handlers-core', () => {
     expect(utilsMock.resolveImageSourceFromGeneration).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
+        operation: 'edit',
         options: expect.objectContaining({
           aspectRatio: '1:1',
           resolution: '1536x1024',
@@ -160,6 +161,7 @@ describe('worker image-task-handlers-core', () => {
     expect(utilsMock.resolveImageSourceFromGeneration).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
+        operation: 'edit',
         options: expect.objectContaining({
           aspectRatio: '16:9',
           resolution: '2048x1152',

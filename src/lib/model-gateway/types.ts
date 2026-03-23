@@ -18,6 +18,7 @@ export interface OpenAICompatImageRequest {
   modelId?: string
   prompt: string
   referenceImages?: string[]
+  operation?: import('@/lib/openai-compat-media-template').OpenAICompatImageOperation
   options?: Record<string, unknown>
   profile: OpenAICompatImageProfile
   template?: import('@/lib/openai-compat-media-template').OpenAICompatMediaTemplate
