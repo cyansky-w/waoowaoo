@@ -116,6 +116,21 @@ describe('external api logging', () => {
         url: 'https://api.example.com/v1/images/generate?job=1',
       }),
     }))
+    expect(info).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'external.api.response',
+      details: expect.objectContaining({
+        status: 200,
+        body: expect.objectContaining({
+          id: 'task_123',
+          images: [
+            expect.objectContaining({
+              b64_json: expect.stringContaining('[FILE_CONTENT'),
+              url: 'https://cdn.example.com/result.png',
+            }),
+          ],
+        }),
+      }),
+    }))
     expect(writeAuditLine).toHaveBeenCalledTimes(1)
 
     const entry = JSON.parse(String(writeAuditLine.mock.calls[0]?.[0])) as {

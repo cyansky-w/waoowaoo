@@ -502,31 +502,21 @@ async function captureResponseAudit(
   response: Response,
   baseEntry: Record<string, unknown>,
   writeAuditLine: NonNullable<CreateExternalApiFetchOptions['writeAuditLine']>,
+  snapshot?: { body?: unknown; auditError?: string },
 ) {
-  try {
-    const body = await readResponseBodySnapshot(response)
-    await writeAuditEntry(writeAuditLine, {
-      ...baseEntry,
-      response: {
-        ok: response.ok,
-        status: response.status,
-        statusText: response.statusText,
-        headers: toResponseHeaders(response),
-        body,
-      },
-    })
-  } catch (error) {
-    await writeAuditEntry(writeAuditLine, {
-      ...baseEntry,
-      response: {
-        ok: response.ok,
-        status: response.status,
-        statusText: response.statusText,
-        headers: toResponseHeaders(response),
-      },
-      auditError: error instanceof Error ? error.message : String(error),
-    })
-  }
+  const body = snapshot?.body
+  const auditError = snapshot?.auditError
+  await writeAuditEntry(writeAuditLine, {
+    ...baseEntry,
+    response: {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      headers: toResponseHeaders(response),
+      ...(body !== undefined ? { body } : {}),
+    },
+    ...(auditError ? { auditError } : {}),
+  })
 }
 
 export function createExternalApiFetch(
@@ -604,6 +594,13 @@ export function createExternalApiFetch(
       const response = await baseFetch.call(globalThis, input, init)
       const durationMs = Date.now() - startedAt
       const contentType = response.headers.get('content-type') || null
+      let responseBodySnapshot: unknown
+      let responseAuditError: string | null = null
+      try {
+        responseBodySnapshot = await readResponseBodySnapshot(response.clone())
+      } catch (error) {
+        responseAuditError = error instanceof Error ? error.message : String(error)
+      }
 
       logger.info({
         audit: true,
@@ -621,13 +618,18 @@ export function createExternalApiFetch(
           status: response.status,
           ok: response.ok,
           contentType,
+          ...(responseBodySnapshot !== undefined ? { body: responseBodySnapshot } : {}),
+          ...(responseAuditError ? { auditError: responseAuditError } : {}),
         },
       })
 
       void captureResponseAudit(response.clone(), {
         ...baseAuditEntry,
         durationMs,
-      }, writeAuditLine)
+      }, writeAuditLine, {
+        ...(responseBodySnapshot !== undefined ? { body: responseBodySnapshot } : {}),
+        ...(responseAuditError ? { auditError: responseAuditError } : {}),
+      })
 
       return response
     } catch (error) {

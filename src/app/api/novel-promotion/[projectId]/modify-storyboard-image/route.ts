@@ -9,6 +9,7 @@ import { buildDefaultTaskBillingInfo } from '@/lib/billing'
 import { hasPanelImageOutput } from '@/lib/task/has-output'
 import { withTaskUiPayload } from '@/lib/task/ui-payload'
 import { getProjectModelConfig, buildImageBillingPayload } from '@/lib/config-service'
+import { assertImageEditModelSupported } from '@/lib/image-edit-model-validation'
 import { sanitizeImageInputsForTaskPayload } from '@/lib/media/outbound-image'
 
 function toObject(value: unknown): Record<string, unknown> {
@@ -99,6 +100,13 @@ export const POST = apiHandler(async (
 
   const projectModelConfig = await getProjectModelConfig(projectId, session.user.id)
   const imageModel = projectModelConfig.editModel
+
+  try {
+    await assertImageEditModelSupported(session.user.id, imageModel)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Image edit model does not support edit operation'
+    throw new ApiError('INVALID_PARAMS', { code: 'IMAGE_MODEL_EDIT_NOT_SUPPORTED', message })
+  }
 
   let billingPayload: Record<string, unknown>
   try {

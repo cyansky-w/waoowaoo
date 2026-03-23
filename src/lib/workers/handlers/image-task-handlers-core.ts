@@ -79,7 +79,27 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
     const currentUrl = toSignedUrlIfCos(currentKey, 3600)
     if (!currentUrl) throw new Error('No image to modify')
 
-    const requiredReference = await stripLabelBar(currentUrl)
+    let requiredReference: string
+    try {
+      requiredReference = await stripLabelBar(currentUrl)
+    } catch (error) {
+      logger.error({
+        message: '角色改图原图预处理失败',
+        errorCode: 'IMAGE_SOURCE_UNAVAILABLE',
+        retryable: false,
+        details: {
+          appearanceId: appearance.id,
+          imageIndex,
+          selectedIndex: appearance.selectedIndex,
+          currentKey,
+          currentUrl,
+          storageType: process.env.STORAGE_TYPE || 'minio',
+          internalAppUrl: process.env.INTERNAL_APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000',
+          cwd: process.cwd(),
+        },
+      })
+      throw error
+    }
     const extraReferenceInputs: string[] = []
     if (Array.isArray(payload.extraImageUrls)) {
       for (const url of payload.extraImageUrls) {
@@ -188,7 +208,26 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
     const currentUrl = toSignedUrlIfCos(locationImage.imageUrl, 3600)
     if (!currentUrl) throw new Error('No location image url')
 
-    const requiredReference = await stripLabelBar(currentUrl)
+    let requiredReference: string
+    try {
+      requiredReference = await stripLabelBar(currentUrl)
+    } catch (error) {
+      logger.error({
+        message: '场景改图原图预处理失败',
+        errorCode: 'IMAGE_SOURCE_UNAVAILABLE',
+        retryable: false,
+        details: {
+          locationImageId: locationImage.id,
+          locationId: locationImage.locationId,
+          currentKey: locationImage.imageUrl,
+          currentUrl,
+          storageType: process.env.STORAGE_TYPE || 'minio',
+          internalAppUrl: process.env.INTERNAL_APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000',
+          cwd: process.cwd(),
+        },
+      })
+      throw error
+    }
     const extraReferenceInputs: string[] = []
     if (Array.isArray(payload.extraImageUrls)) {
       for (const url of payload.extraImageUrls) {

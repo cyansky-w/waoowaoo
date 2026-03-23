@@ -32,6 +32,70 @@ const authState = vi.hoisted<AuthState>(() => ({
 }))
 
 const submitTaskMock = vi.hoisted(() => vi.fn<(...args: unknown[]) => Promise<SubmitResult>>())
+const apiConfigMock = vi.hoisted(() => ({
+  resolveModelSelection: vi.fn(async () => ({
+    provider: 'openai-compatible:provider-1',
+    modelId: 'img-edit',
+    modelKey: 'openai-compatible:provider-1::img-edit',
+    mediaType: 'image',
+    compatMediaTemplate: {
+      version: 2,
+      mediaType: 'image',
+      operations: {
+        generate: {
+          mode: 'sync',
+          create: {
+            method: 'POST',
+            path: '/images/generations',
+            contentType: 'application/json',
+            bodyTemplate: {
+              model: '{{model}}',
+              prompt: '{{prompt}}',
+            },
+          },
+          response: {
+            outputUrlPath: '$.data[0].url',
+          },
+        },
+        edit: {
+          mode: 'sync',
+          create: {
+            method: 'POST',
+            path: '/images/edits',
+            contentType: 'multipart/form-data',
+            multipartFileFields: ['image'],
+            bodyTemplate: {
+              model: '{{model}}',
+              prompt: '{{prompt}}',
+              image: '{{images}}',
+            },
+          },
+          response: {
+            outputUrlPath: '$.data[0].url',
+          },
+        },
+      },
+    },
+  }) as Record<string, unknown>),
+  resolveModelSelectionOrSingle: vi.fn(async (_userId: string, model: string | null | undefined) => {
+    const modelKey = typeof model === 'string' && model.trim().length > 0
+      ? model.trim()
+      : 'fal::audio-model'
+    const separator = modelKey.indexOf('::')
+    const provider = separator === -1 ? modelKey : modelKey.slice(0, separator)
+    const modelId = separator === -1 ? modelKey : modelKey.slice(separator + 2)
+    return {
+      provider,
+      modelId,
+      modelKey,
+      mediaType: 'audio',
+    }
+  }),
+  getProviderKey: vi.fn((providerId: string) => {
+    const marker = providerId.indexOf(':')
+    return marker === -1 ? providerId : providerId.slice(0, marker)
+  }),
+}))
 
 const configServiceMock = vi.hoisted(() => ({
   getUserModelConfig: vi.fn(async () => ({
@@ -262,27 +326,9 @@ vi.mock('@/lib/model-pricing/lookup', () => ({
   resolveBuiltinPricing: vi.fn(() => ({ status: 'ok' })),
 }))
 vi.mock('@/lib/api-config', () => ({
-  resolveModelSelection: vi.fn(async () => ({
-    model: 'img::storyboard',
-  })),
-  resolveModelSelectionOrSingle: vi.fn(async (_userId: string, model: string | null | undefined) => {
-    const modelKey = typeof model === 'string' && model.trim().length > 0
-      ? model.trim()
-      : 'fal::audio-model'
-    const separator = modelKey.indexOf('::')
-    const provider = separator === -1 ? modelKey : modelKey.slice(0, separator)
-    const modelId = separator === -1 ? modelKey : modelKey.slice(separator + 2)
-    return {
-      provider,
-      modelId,
-      modelKey,
-      mediaType: 'audio',
-    }
-  }),
-  getProviderKey: vi.fn((providerId: string) => {
-    const marker = providerId.indexOf(':')
-    return marker === -1 ? providerId : providerId.slice(0, marker)
-  }),
+  resolveModelSelection: apiConfigMock.resolveModelSelection,
+  resolveModelSelectionOrSingle: apiConfigMock.resolveModelSelectionOrSingle,
+  getProviderKey: apiConfigMock.getProviderKey,
 }))
 vi.mock('@/lib/prisma', () => ({
   prisma: prismaMock,
@@ -528,4 +574,50 @@ describe('api contract - direct submit routes (behavior)', () => {
       }
     })
   }
+
+  it('rejects image edit submit routes when edit template is missing', async () => {
+    apiConfigMock.resolveModelSelection.mockResolvedValue({
+      provider: 'openai-compatible:provider-1',
+      modelId: 'img-edit',
+      modelKey: 'openai-compatible:provider-1::img-edit',
+      mediaType: 'image',
+      compatMediaTemplate: {
+        version: 2,
+        mediaType: 'image',
+        operations: {
+          generate: {
+            mode: 'sync',
+            create: {
+              method: 'POST',
+              path: '/images/generations',
+              contentType: 'application/json',
+              bodyTemplate: {
+                model: '{{model}}',
+                prompt: '{{prompt}}',
+              },
+            },
+            response: {
+              outputUrlPath: '$.data[0].url',
+            },
+          },
+        },
+      },
+    } as Record<string, unknown>)
+
+    const failingRoutes = DIRECT_CASES.filter((routeCase) =>
+      routeCase.routeFile.endsWith('/asset-hub/modify-image/route.ts')
+      || routeCase.routeFile.endsWith('/modify-asset-image/route.ts')
+      || routeCase.routeFile.endsWith('/modify-storyboard-image/route.ts'),
+    )
+
+    for (const routeCase of failingRoutes) {
+      const res = await invokePostRoute(routeCase)
+      expect(res.status).toBe(400)
+      const json = await res.json() as { error?: { code?: string; message?: string }; detail?: string }
+      expect(json.error?.code).toBe('INVALID_PARAMS')
+      expect(json.detail || json.error?.message).toContain('OPENAI_COMPAT_IMAGE_TEMPLATE_OPERATION_UNSUPPORTED: edit')
+    }
+
+    expect(submitTaskMock).not.toHaveBeenCalled()
+  })
 })

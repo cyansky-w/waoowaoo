@@ -22,6 +22,15 @@ const sharedMock = vi.hoisted(() => ({
   resolveNovelData: vi.fn(async () => ({ videoRatio: '16:9' })),
 }))
 
+const loggerErrorMock = vi.hoisted(() => vi.fn())
+const loggingMock = vi.hoisted(() => ({
+  createScopedLogger: vi.fn(() => ({
+    error: loggerErrorMock,
+    warn: vi.fn(),
+    info: vi.fn(),
+  })),
+}))
+
 const prismaMock = vi.hoisted(() => ({
   characterAppearance: {
     findUnique: vi.fn(),
@@ -47,6 +56,7 @@ vi.mock('@/lib/media/outbound-image', () => outboundImageMock)
 vi.mock('@/lib/prisma', () => ({
   prisma: prismaMock,
 }))
+vi.mock('@/lib/logging/core', () => loggingMock)
 vi.mock('@/lib/workers/handlers/image-task-handler-shared', async () => {
   const actual = await vi.importActual<typeof import('@/lib/workers/handlers/image-task-handler-shared')>(
     '@/lib/workers/handlers/image-task-handler-shared',
@@ -179,5 +189,44 @@ describe('worker image-task-handlers-core', () => {
     expect(updateData.previousImageUrl).toBe('cos/panel-old.png')
     expect(updateData.imageUrl).toBe('cos/new-image.png')
     expect(updateData.candidateImages).toBeNull()
+  })
+
+  it('logs diagnostic context when character source image preprocessing fails', async () => {
+    prismaMock.characterAppearance.findUnique.mockResolvedValue({
+      id: 'appearance-1',
+      imageUrls: JSON.stringify(['cos/current-image.png']),
+      imageUrl: 'cos/current-image.png',
+      selectedIndex: 0,
+      changeReason: 'base',
+      description: 'old description',
+      descriptions: JSON.stringify(['old description']),
+      character: { name: 'Hero' },
+    })
+    utilsMock.stripLabelBar.mockRejectedValueOnce(new Error('Failed to download image for strip: 404'))
+
+    const job = buildJob({
+      type: 'character',
+      appearanceId: 'appearance-1',
+      imageIndex: 0,
+      modifyPrompt: 'add glasses',
+    })
+
+    await expect(handleModifyAssetImageTask(job)).rejects.toThrow('Failed to download image for strip: 404')
+
+    expect(loggerErrorMock).toHaveBeenCalledWith(expect.objectContaining({
+      message: '角色改图原图预处理失败',
+      errorCode: 'IMAGE_SOURCE_UNAVAILABLE',
+      retryable: false,
+      details: expect.objectContaining({
+        appearanceId: 'appearance-1',
+        imageIndex: 0,
+        selectedIndex: 0,
+        currentKey: 'cos/current-image.png',
+        currentUrl: 'https://signed/current-image.png',
+        storageType: expect.any(String),
+        internalAppUrl: expect.any(String),
+        cwd: expect.any(String),
+      }),
+    }))
   })
 })

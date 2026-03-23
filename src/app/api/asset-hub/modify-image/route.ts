@@ -6,6 +6,7 @@ import { resolveRequiredTaskLocale } from '@/lib/task/resolve-locale'
 import { TASK_TYPE } from '@/lib/task/types'
 import { buildDefaultTaskBillingInfo } from '@/lib/billing'
 import { getUserModelConfig, buildImageBillingPayloadFromUserConfig } from '@/lib/config-service'
+import { assertImageEditModelSupported } from '@/lib/image-edit-model-validation'
 import {
   hasGlobalCharacterAppearanceOutput,
   hasGlobalLocationImageOutput
@@ -85,6 +86,13 @@ export const POST = apiHandler(async (request: NextRequest) => {
 
   const userModelConfig = await getUserModelConfig(session.user.id)
   const imageModel = userModelConfig.editModel
+
+  try {
+    await assertImageEditModelSupported(session.user.id, imageModel)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Image edit model does not support edit operation'
+    throw new ApiError('INVALID_PARAMS', { code: 'IMAGE_MODEL_EDIT_NOT_SUPPORTED', message })
+  }
 
   let billingPayload: Record<string, unknown>
   try {
